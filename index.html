@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trap Room</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <button id="home-btn" class="pixel-btn" type="button" hidden>← Home</button>
+  <button id="account-btn" class="pixel-btn" type="button" aria-haspopup="dialog" aria-label="Log in or sign up">
+    <span id="account-btn-icon" aria-hidden="true"></span>
+  </button>
+
+  <div id="title-screen">
+    <div class="title-spikes" aria-hidden="true">
+      <div class="title-spike"></div>
+      <div class="title-spike title-spike-tall"></div>
+      <div class="title-spike"></div>
+      <div class="title-spike title-spike-tall"></div>
+      <div class="title-spike"></div>
+      <div class="title-spike title-spike-tall"></div>
+      <div class="title-spike"></div>
+    </div>
+
+    <div id="title-torch-left" class="title-torch" aria-hidden="true"></div>
+    <div id="title-torch-right" class="title-torch" aria-hidden="true"></div>
+
+    <div id="title-content">
+      <div id="title-logo"><span>Trap</span><span>Room</span></div>
+      <p id="title-tagline">Every tile is a decision.</p>
+      <p id="title-link-error" class="invalid" hidden>That level link looks broken — pick something from the menu instead.</p>
+
+      <nav id="title-menu">
+        <button type="button" class="title-btn title-btn-primary" id="title-play-btn">Play</button>
+        <button type="button" class="title-btn" id="title-daily-btn">Daily Puzzle</button>
+        <button type="button" class="title-btn" id="title-builder-btn">Creative Mode</button>
+        <button type="button" class="title-btn" id="title-howto-btn">How To Play</button>
+        <button type="button" class="title-btn" id="title-credits-btn">Credits</button>
+      </nav>
+    </div>
+
+    <div id="title-sign">
+      <div id="title-sign-post" aria-hidden="true"></div>
+      <p id="title-sign-text"></p>
+    </div>
+  </div>
+
+  <div id="title-howto-modal" class="title-modal" hidden>
+    <div class="title-modal-card">
+      <h2>How To Play</h2>
+      <p>Move with Arrow Keys or WASD — one step per keypress. Reach the glowing gem to win. Traps keep their own rhythm (one beat is half a second), so don't linger.</p>
+      <p>Play the three worlds in order: beat 8 of a world's 10 levels to unlock the next. The Daily Puzzle lets you try every world, even locked ones.</p>
+      <h3>Everywhere</h3>
+      <ul>
+        <li>Spikes kill on contact. Timed spikes are deadly for 2 beats, then safe for 2. Hidden spikes look like plain floor until they get you.</li>
+        <li>One-way tiles only let you in from the direction their arrow points. Portals warp you to their matching twin.</li>
+        <li>The start and goal are safe: no fire, creature or blast can reach them.</li>
+      </ul>
+      <h3>Volcanic Depths</h3>
+      <ul>
+        <li>Obsidian ice keeps you sliding; hit something and you glance off to the side (down before up, or right before left). Lava currents shove you along.</li>
+        <li>Lava turrets fire every 3 beats — walk with the shots, never against them. Flame vents glow, then erupt.</li>
+        <li>Fire imps pace back and forth. Step on a bomb and its fuse lights: get two tiles clear.</li>
+      </ul>
+      <h3>Frozen Caverns</h3>
+      <ul>
+        <li>Thin ice breaks the moment you step off it — cross each tile once. A slide stops dead on it.</li>
+        <li>Frostbite patches are safe to cross, but freeze you if you stand on one for a second beat.</li>
+        <li>Walk under a falling icicle and it crashes 3 beats later, leaving a solid block of ice that stops you, your slides, and frost-cannon shots.</li>
+      </ul>
+      <h3>Overgrown Ruins</h3>
+      <ul>
+        <li>Grabbing vines hold you in place for 2 beats. Mushroom pads bounce you 2 tiles on, over whatever is between.</li>
+        <li>Snapjaws rustle, then bite the 4 tiles around them every 6 beats. Wild boars charge 2 tiles per beat.</li>
+        <li>Streams carry you along; fairy rings are the ruins' portals.</li>
+      </ul>
+      <p>⏱ Timed rooms: reach the goal before the clock runs out, or the room resets.</p>
+      <button type="button" class="title-btn" id="title-howto-close-btn">Back</button>
+    </div>
+  </div>
+
+  <div id="title-credits-modal" class="title-modal" hidden>
+    <div class="title-modal-card">
+      <h2>Credits</h2>
+      <p>Trap Room — a pixel-art trap puzzler. Three worlds of hand-built rooms, a daily puzzle, and a Creative Mode to build and share your own.</p>
+      <p>Every tile, trap, and character is hand-generated pixel art rendered at runtime — no image files, no build step.</p>
+      <button type="button" class="title-btn" id="title-credits-close-btn">Back</button>
+    </div>
+  </div>
+
+  <div id="trap-intro-modal" class="title-modal" hidden>
+    <div class="title-modal-card">
+      <h2>New trap!</h2>
+      <ul id="trap-intro-list"></ul>
+      <button type="button" class="title-btn title-btn-primary" id="trap-intro-start-btn">Start</button>
+    </div>
+  </div>
+
+  <div id="account-modal" class="title-modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title" hidden>
+    <div class="title-modal-card">
+      <h2 id="account-modal-title">Log In</h2>
+
+      <form id="account-login-form" class="account-view" data-title="Log In" novalidate hidden>
+        <label>Email <input name="email" type="email" autocomplete="email" required></label>
+        <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit" class="title-btn title-btn-primary">Log In</button>
+        <div class="account-links">
+          <button type="button" class="text-btn" data-view="forgot">Forgot password?</button>
+          <button type="button" class="text-btn" data-view="signup">New here? Sign up</button>
+        </div>
+      </form>
+
+      <form id="account-signup-form" class="account-view" data-title="Sign Up" novalidate hidden>
+        <p>Save your progress to an account and pick it up on any device.</p>
+        <label>Username <input name="username" type="text" autocomplete="username" maxlength="16" spellcheck="false" required></label>
+        <label>Email <input name="email" type="email" autocomplete="email" required></label>
+        <label>Password <input name="password" type="password" autocomplete="new-password" required></label>
+        <button type="submit" class="title-btn title-btn-primary">Sign Up</button>
+        <div class="account-links">
+          <button type="button" class="text-btn" data-view="login">Have an account? Log in</button>
+        </div>
+      </form>
+
+      <form id="account-forgot-form" class="account-view" data-title="Forgot Password" novalidate hidden>
+        <p>Enter your account's email and we'll send you a link to set a new password.</p>
+        <label>Email <input name="email" type="email" autocomplete="email" required></label>
+        <button type="submit" class="title-btn title-btn-primary">Send Reset Link</button>
+        <div class="account-links">
+          <button type="button" class="text-btn" data-view="login">Back to log in</button>
+        </div>
+      </form>
+
+      <form id="account-reset-form" class="account-view" data-title="New Password" novalidate hidden>
+        <p id="account-reset-for"></p>
+        <label>New password <input name="password" type="password" autocomplete="new-password" required></label>
+        <button type="submit" class="title-btn title-btn-primary">Save Password</button>
+      </form>
+
+      <form id="account-claim-form" class="account-view" data-title="Pick a Username" novalidate hidden>
+        <p>One last step: choose a username for your account.</p>
+        <label>Username <input name="username" type="text" autocomplete="username" maxlength="16" spellcheck="false" required></label>
+        <button type="submit" class="title-btn title-btn-primary">Save</button>
+        <div class="account-links">
+          <button type="button" class="text-btn" id="account-claim-logout-btn">Log out</button>
+        </div>
+      </form>
+
+      <div id="account-profile-view" class="account-view" data-title="Account" hidden>
+        <div id="account-profile-head">
+          <span id="account-profile-icon" aria-hidden="true"></span>
+          <div>
+            <p id="account-profile-name"></p>
+            <p id="account-sync-status"></p>
+          </div>
+        </div>
+        <h3>Your icon</h3>
+        <div id="account-icon-grid" role="group" aria-label="Choose your icon"></div>
+        <button type="button" class="title-btn" id="account-logout-btn">Log Out</button>
+      </div>
+
+      <div id="account-notice-view" class="account-view" data-title="Account" hidden>
+        <p id="account-notice-text"></p>
+      </div>
+
+      <p id="account-message" role="status"></p>
+      <button type="button" class="title-btn" id="account-close-btn">Close</button>
+    </div>
+  </div>
+
+  <h1>Trap Room</h1>
+
+  <section id="theme-select" hidden aria-label="Choose a world">
+    <div id="theme-carousel">
+      <button id="theme-prev" class="theme-arrow" type="button" aria-label="Previous world">◀</button>
+      <div id="theme-card">
+        <div id="theme-preview" aria-hidden="true"></div>
+        <div id="theme-lock" aria-hidden="true">🔒</div>
+      </div>
+      <button id="theme-next" class="theme-arrow" type="button" aria-label="Next world">▶</button>
+    </div>
+    <h2 id="theme-name"></h2>
+    <p id="theme-status"></p>
+    <div id="theme-progress" aria-hidden="true"><div id="theme-progress-fill"></div></div>
+    <div id="theme-dots"></div>
+    <button id="theme-levels-btn" class="pixel-btn" type="button">Levels</button>
+    <button id="reset-progress-btn" class="text-btn" type="button">Reset progress</button>
+    <div id="reset-progress-confirm" hidden>
+      <p>Erase every level you've beaten? This can't be undone.</p>
+      <button id="reset-progress-yes-btn" class="pixel-btn" type="button">Erase</button>
+      <button id="reset-progress-no-btn" class="pixel-btn" type="button">Cancel</button>
+    </div>
+  </section>
+
+  <section id="level-select" hidden>
+    <h2 id="level-select-title"></h2>
+    <p id="level-select-subtitle"></p>
+    <div id="level-grid"></div>
+    <button id="level-select-back-btn" class="pixel-btn" type="button">← Worlds</button>
+  </section>
+
+  <div id="controls" hidden>
+    <button id="builder-toggle" class="pixel-btn">Enter Creative Mode</button>
+    <button id="daily-toggle" class="pixel-btn">Daily Puzzle</button>
+    <span id="trap-counter" hidden></span>
+    <button id="validate-btn" class="pixel-btn" hidden>Validate</button>
+    <button id="share-btn" class="pixel-btn" hidden>Share</button>
+  </div>
+
+  <section id="daily-hub" hidden>
+    <h2>Daily Puzzle — <span id="daily-hub-date"></span></h2>
+    <p id="daily-hub-theme"></p>
+    <p id="daily-hub-streak"></p>
+    <div id="daily-hub-columns">
+      <div class="daily-hub-column">
+        <h3>Solver</h3>
+        <p class="daily-hub-hint">Navigate today's fixed room.</p>
+        <button type="button" class="daily-mode-btn pixel-btn" data-type="solver" data-difficulty="easy">Easy</button>
+        <button type="button" class="daily-mode-btn pixel-btn" data-type="solver" data-difficulty="medium">Medium</button>
+        <button type="button" class="daily-mode-btn pixel-btn" data-type="solver" data-difficulty="hard">Hard</button>
+      </div>
+      <div class="daily-hub-column">
+        <h3>Builder</h3>
+        <p class="daily-hub-hint">Build a room that beats today's bot target.</p>
+        <button type="button" class="daily-mode-btn pixel-btn" data-type="builder" data-difficulty="easy">Easy</button>
+        <button type="button" class="daily-mode-btn pixel-btn" data-type="builder" data-difficulty="medium">Medium</button>
+        <button type="button" class="daily-mode-btn pixel-btn" data-type="builder" data-difficulty="hard">Hard</button>
+      </div>
+    </div>
+    <p id="daily-hub-stats"></p>
+  </section>
+
+  <div id="daily-builder-bar" hidden>
+    <p id="daily-builder-target"></p>
+    <button id="daily-builder-submit-btn" class="pixel-btn" type="button">Submit to Bot</button>
+    <button id="daily-builder-back-btn" class="pixel-btn" type="button">← Daily Puzzle</button>
+  </div>
+  <p id="daily-builder-result"></p>
+
+  <button id="builder-panel-toggle" class="pixel-btn" hidden>✕ Close Blocks</button>
+
+  <aside id="builder-panel" hidden>
+    <h2>Blocks</h2>
+    <div id="creative-theme-picker" role="group" aria-label="Map look">
+      <button type="button" data-theme="lava" aria-pressed="true">Lava</button>
+      <button type="button" data-theme="ice" aria-pressed="false">Ice</button>
+      <button type="button" data-theme="grass" aria-pressed="false">Grass</button>
+    </div>
+    <p id="builder-panel-hint">Drag a block onto the grid to place it. Click a placed turret, vent, current, imp, boar or one-way to rotate it. Every trap works in every look.</p>
+    <div id="palette-list"></div>
+    <button id="trash-can" class="palette-item" type="button" draggable="true"
+      title="Drag onto a tile to clear it, or drag a tile here">
+      <div class="palette-icon" id="trash-icon"></div>
+      <span class="palette-label">Trash</span>
+    </button>
+    <button id="clear-all-btn" class="pixel-btn" type="button">Clear All</button>
+    <div id="clear-all-confirm" hidden>
+      <p>Clear every tile? This can't be undone.</p>
+      <div id="clear-all-confirm-actions">
+        <button id="clear-all-confirm-btn" class="pixel-btn" type="button">Confirm Clear</button>
+        <button id="clear-all-cancel-btn" class="pixel-btn" type="button">Cancel</button>
+      </div>
+    </div>
+  </aside>
+
+  <h2 id="level-heading" hidden></h2>
+  <p id="solver-info" hidden>Use Arrow Keys or WASD to move. Dodge the traps, reach the glowing goal tile.</p>
+  <p id="solver-stats" hidden>
+    <span id="time-label">Time:</span> <span id="elapsed-time">0:00</span> ·
+    Moves: <span id="move-count">0</span> ·
+    Deaths: <span id="death-count">0</span>
+    <button id="solver-reset-btn" class="pixel-btn" type="button">Reset</button>
+    <button id="campaign-back-btn" class="pixel-btn" type="button" hidden>← Levels</button>
+    <button id="daily-solver-back-btn" class="pixel-btn" type="button" hidden>← Daily Puzzle</button>
+  </p>
+
+  <div id="grid" hidden></div>
+
+  <p id="validate-result"></p>
+  <p id="solver-message"></p>
+  <p id="best-score" hidden></p>
+
+  <div id="share-output" hidden>
+    <input id="share-link" type="text" readonly>
+    <button id="copy-share-btn" class="pixel-btn">Copy Link</button>
+  </div>
+
+  <div id="win-modal" hidden>
+    <div id="win-modal-card">
+      <h2>You Win! 🎉</h2>
+      <p id="win-modal-stats"></p>
+      <p id="win-modal-unlock" hidden></p>
+      <div id="win-modal-actions">
+        <button id="win-modal-next-btn" class="pixel-btn" type="button" hidden>Next Level →</button>
+        <button id="win-modal-reset-btn" class="pixel-btn" type="button">Play Again</button>
+        <button id="win-modal-levels-btn" class="pixel-btn" type="button" hidden>← Levels</button>
+        <button id="win-modal-daily-back-btn" class="pixel-btn" type="button" hidden>Back to Daily Puzzle</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="sprites.js" defer></script>
+  <script src="script.js" defer></script>
+  <script src="levels.js" defer></script>
+  <script src="cloudsave.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js" defer></script>
+  <script src="firebase-config.js" defer></script>
+  <script src="account.js" defer></script>
+</body>
+</html>

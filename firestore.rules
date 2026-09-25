@@ -1,0 +1,58 @@
+rules_version = '2';
+
+// Security rules for Trap Room's accounts (see account.js). Paste this whole
+// file into Firebase console > Firestore Database > Rules, then Publish.
+//
+//   users/{uid}      a player's profile and save: only they can read or change it
+//   usernames/{key}  { uid }, one per account, so no two players share a name
+//
+// Passwords never appear here: Firebase Authentication stores them, hashed.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function validUsername(name) {
+      return name is string && name.matches('^[A-Za-z0-9_]{3,16}$');
+    }
+
+    // Keep in sync with PROFILE_ICONS in sprites.js.
+    function validIcon(icon) {
+      return icon in ['spike', 'key', 'door', 'bomb', 'portal', 'gem', 'icicle', 'snapjaw', 'mushroom'];
+    }
+
+    function validSave(save) {
+      return save is string && save.size() < 800000;
+    }
+
+    match /usernames/{key} {
+      // Anyone may check whether a name is taken (it reveals no email).
+      allow get: if true;
+      // Claimed only together with the matching profile (a batch in
+      // account.js), and never changed or released after that.
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.usernameKey == key;
+    }
+
+    match /users/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['username', 'usernameKey', 'icon', 'save', 'updatedAt'])
+        && validUsername(request.resource.data.username)
+        && request.resource.data.usernameKey == request.resource.data.username.lower()
+        && validIcon(request.resource.data.icon)
+        && validSave(request.resource.data.save)
+        && request.resource.data.updatedAt == request.time
+        && getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.usernameKey)).data.uid == uid;
+
+      // The username is permanent; only the icon and the save change.
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['icon', 'save', 'updatedAt'])
+        && validIcon(request.resource.data.icon)
+        && validSave(request.resource.data.save)
+        && request.resource.data.updatedAt == request.time;
+    }
+  }
+}
