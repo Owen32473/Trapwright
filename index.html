@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trap Room</title>
+  <title>Trapwright</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -28,7 +28,7 @@
     <div id="title-torch-right" class="title-torch" aria-hidden="true"></div>
 
     <div id="title-content">
-      <div id="title-logo"><span>Trap</span><span>Room</span></div>
+      <div id="title-logo"><span>Trap</span><span>wright</span></div>
       <p id="title-tagline">Every tile is a decision.</p>
       <p id="title-link-error" class="invalid" hidden>That level link looks broken — pick something from the menu instead.</p>
 
@@ -84,8 +84,9 @@
   <div id="title-credits-modal" class="title-modal" hidden>
     <div class="title-modal-card">
       <h2>Credits</h2>
-      <p>Trap Room — a pixel-art trap puzzler. Three worlds of hand-built rooms, a daily puzzle, and a Creative Mode to build and share your own.</p>
+      <p>Trapwright — a pixel-art trap puzzler. Three worlds of hand-built rooms, a daily puzzle, and a Creative Mode to build and share your own.</p>
       <p>Every tile, trap, and character is hand-generated pixel art rendered at runtime — no image files, no build step.</p>
+      <p><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></p>
       <button type="button" class="title-btn" id="title-credits-close-btn">Back</button>
     </div>
   </div>
@@ -117,6 +118,10 @@
         <label>Username <input name="username" type="text" autocomplete="username" maxlength="16" spellcheck="false" required></label>
         <label>Email <input name="email" type="email" autocomplete="email" required></label>
         <label>Password <input name="password" type="password" autocomplete="new-password" required></label>
+        <label class="account-check">
+          <input name="age" type="checkbox" required>
+          <span>I'm 13 or older, and I've read the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+        </label>
         <button type="submit" class="title-btn title-btn-primary">Sign Up</button>
         <div class="account-links">
           <button type="button" class="text-btn" data-view="login">Have an account? Log in</button>
@@ -158,7 +163,21 @@
         <h3>Your icon</h3>
         <div id="account-icon-grid" role="group" aria-label="Choose your icon"></div>
         <button type="button" class="title-btn" id="account-logout-btn">Log Out</button>
+        <div class="account-links">
+          <a class="text-btn" href="privacy.html" target="_blank" rel="noopener">Privacy policy</a>
+          <button type="button" class="text-btn" data-view="delete">Delete account</button>
+        </div>
       </div>
+
+      <form id="account-delete-form" class="account-view" data-title="Delete Account" novalidate hidden>
+        <p>This permanently deletes your account, username and cloud save. It can't be undone.</p>
+        <p>Progress on this device stays, so you can keep playing without an account.</p>
+        <label>Type your password to confirm <input name="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit" class="title-btn" id="account-delete-btn">Delete My Account</button>
+        <div class="account-links">
+          <button type="button" class="text-btn" data-view="profile">Cancel</button>
+        </div>
+      </form>
 
       <div id="account-notice-view" class="account-view" data-title="Account" hidden>
         <p id="account-notice-text"></p>
@@ -169,7 +188,7 @@
     </div>
   </div>
 
-  <h1>Trap Room</h1>
+  <h1>Trapwright</h1>
 
   <section id="theme-select" hidden aria-label="Choose a world">
     <div id="theme-carousel">

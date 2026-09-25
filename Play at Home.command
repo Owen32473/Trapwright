@@ -1,5 +1,5 @@
 #!/bin/bash
-# Double-click to serve Trap Room to phones, tablets and computers on your
+# Double-click to serve Trapwright to phones, tablets and computers on your
 # home Wi-Fi. Only devices on the same network can reach it; your router
 # keeps it off the public internet. Keep this window open while playing,
 # and close it (or press Ctrl+C) to stop.
@@ -9,7 +9,7 @@ PORT=8080
 IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1)
 
 echo ""
-echo "  Trap Room is running on your home network."
+echo "  Trapwright is running on your home network."
 echo "  On any device on your Wi-Fi, open one of these:"
 echo ""
 echo "    http://$(scutil --get LocalHostName).local:$PORT"

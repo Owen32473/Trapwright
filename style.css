@@ -1645,7 +1645,7 @@ body[data-theme="grass"] {
   color: #b7b7c2;
 }
 
-.account-view input {
+.account-view input:not([type="checkbox"]) {
   font: inherit;
   font-size: 1rem;
   padding: 8px 10px;
@@ -1658,6 +1658,35 @@ body[data-theme="grass"] {
 .account-view input:focus-visible {
   outline: 3px solid #4aa3ff;
   outline-offset: 1px;
+}
+
+.account-view label.account-check {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.account-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: none;
+  accent-color: #e8c04a;
+}
+
+.title-modal-card a:not(.text-btn) {
+  color: #e8c04a;
+}
+
+/* Destructive, like #clear-all-confirm-btn: a flat red instead of the
+   plate (the shorthand drops .pixel-btn's background-image). */
+#account-delete-btn {
+  background: #b0262d;
+}
+
+#account-delete-btn:hover {
+  background: #c8323a;
 }
 
 .account-links {

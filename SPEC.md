@@ -1,4 +1,8 @@
-# Trap Room — Spec
+# Trapwright — Spec
+
+(Called "Trap Room" until September 2026. Internal names such as the
+`trapRoom*` localStorage keys and the project folder keep the old name on
+purpose: renaming the keys would wipe every player's saved progress.)
 
 Paste this into future sessions for context. Keep it in sync with the code —
 if the data model changes, update this file in the same session.
@@ -57,6 +61,8 @@ account.js   - accounts on Firebase: the top-right account button, the
                password, pick a username, account panel) and cloud-save
                syncing. Loaded last, after the Firebase SDK and
                firebase-config.js.
+privacy.html - the privacy policy (standalone page, linked from sign-up,
+               the account panel and Credits)
 firebase-config.js - the Firebase project's (public) web config; accounts
                stay off until apiKey is filled in
 firestore.rules - Firestore security rules, pasted into the Firebase
@@ -1512,8 +1518,9 @@ through those save functions, so it never triggers an upload.
   never an existing name, which is what makes usernames unique
   (case-insensitively). Usernames: 3-16 letters, digits or `_`, permanent.
 
-The rules let a player read and change only their own `users` doc (and only
-`icon`/`save` after creation, with the icon from `PROFILE_ICONS`'s ids),
+The rules let a player read, change and delete only their own `users` doc
+(changing only `icon`/`save` after creation, with the icon from
+`PROFILE_ICONS`'s ids), delete only the `usernames` doc that's theirs,
 and let anyone `get` a `usernames` doc to check if a name is taken (it holds
 no email). Login is by email; the username is the display name (logging in
 by username would mean looking up someone's email from their name).
@@ -1560,6 +1567,20 @@ Profile icons (`PROFILE_ICONS` in [sprites.js](sprites.js)) are nine tiles:
 the game's own spike, bomb, portal, goal gem, icicle, snapjaw and mushroom
 textures, plus a key and a door drawn for this on the lava floor. Ids are
 stored in profiles and listed in firestore.rules, so never rename one.
+
+### Sign-up age check, privacy and deleting an account
+
+Sign-up requires ticking "I'm 13 or older, and I've read the Privacy
+Policy" (US COPPA: accounts hold an email, which under-13s can't give
+without a parent's consent; playing without an account collects nothing).
+[privacy.html](privacy.html) says what's stored and where, and its Contact
+line is a placeholder to fill in before the game is ever made public.
+
+"Delete account" in the account panel asks for the password again
+(Firebase refuses to delete an account that hasn't logged in recently, and
+it stops someone at an unlocked device), stops syncing, deletes the
+`users` and `usernames` docs in one batch, then the Firebase Auth user.
+This device's save stays, as a guest's.
 
 ### Password reset
 

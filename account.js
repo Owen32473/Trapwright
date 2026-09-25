@@ -97,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reset: $('account-reset-form'),
     claim: $('account-claim-form'),
     profile: $('account-profile-view'),
+    delete: $('account-delete-form'),
     notice: $('account-notice-view'),
   };
   const noticeTextEl = $('account-notice-text');
@@ -445,6 +446,11 @@ document.addEventListener('DOMContentLoaded', () => {
   ));
 
   handleSubmit(views.signup, async (data) => {
+    // No accounts for under-13s (US COPPA): they'd need a parent's consent
+    // for us to hold their email. Playing without an account collects nothing.
+    if (!data.get('age')) {
+      throw friendlyError('You need to be 13 or older to make an account. You can still play without one.');
+    }
     const username = String(data.get('username')).trim();
     const email = String(data.get('email')).trim();
     const password = String(data.get('password'));
@@ -573,4 +579,44 @@ document.addEventListener('DOMContentLoaded', () => {
     setMessage('Logged out. Your progress is safe in your account.', 'ok');
   }
   $('account-logout-btn').addEventListener('click', () => logOut());
+
+  // Deletes the account, username and cloud save for good (the right to
+  // erasure). Firebase only deletes an account that logged in recently, so
+  // it asks for the password again first; that also guards against someone
+  // at an unlocked device. This device's save is kept, as a guest's.
+  handleSubmit(views.delete, async (data) => {
+    const doomed = user;
+    try {
+      await doomed.reauthenticateWithCredential(
+        firebase.auth.EmailAuthProvider.credential(doomed.email, String(data.get('password'))),
+      );
+    } catch (err) {
+      if (['auth/invalid-credential', 'auth/wrong-password'].includes(err.code)) {
+        throw friendlyError('That password isn’t right.');
+      }
+      throw err;
+    }
+    // Stop syncing first, so no upload races the deletion.
+    clearTimeout(uploadTimer);
+    const syncState = readSyncState();
+    writeSyncState(null);
+    try {
+      const batch = db.batch();
+      batch.delete(userDoc(doomed.uid));
+      if (profile) batch.delete(usernameDoc(profile.username.toLowerCase()));
+      await batch.commit();
+      signingIn = true; // this sign-out is handled here
+      await doomed.delete();
+    } catch (err) {
+      writeSyncState(syncState);
+      throw err;
+    } finally {
+      signingIn = false;
+    }
+    user = null;
+    profile = null;
+    paintAccountButton();
+    showView('login');
+    setMessage('Your account has been deleted.', 'ok');
+  });
 });
