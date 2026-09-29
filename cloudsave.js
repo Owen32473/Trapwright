@@ -6,7 +6,8 @@
 // check the merge rules on their own. Loaded after levels.js.
 //
 // A save is { progress, dailyStats, bestScores } — everything the game keeps
-// in localStorage: campaign progress (loadProgress in levels.js), Daily
+// in localStorage: campaign progress and cutscenes seen (loadProgress in
+// levels.js), Daily
 // Puzzle stats (loadDailyStats in script.js), and best move counts per room
 // (readBestScore in script.js), as { [levelCode]: moves }.
 
@@ -30,13 +31,19 @@ function normalizeSave(save) {
   Object.entries(progress.levels).forEach(([id, rec]) => {
     if (!rec || typeof rec !== 'object') return;
     levels[id] = { moves: finiteOrNull(rec.moves), timeMs: finiteOrNull(rec.timeMs), deaths: finiteOrNull(rec.deaths) };
+    const stars = finiteOrNull(rec.stars);
+    if (stars !== null && stars >= 1 && stars <= 3) levels[id].stars = Math.round(stars);
   });
   const bestScores = {};
   Object.entries(s.bestScores && typeof s.bestScores === 'object' ? s.bestScores : {}).forEach(([code, moves]) => {
     const n = finiteOrNull(moves);
     if (n !== null) bestScores[code] = n;
   });
-  return { progress: { version: 1, levels }, dailyStats: normalizeDailyStats(s.dailyStats), bestScores };
+  return {
+    progress: { version: 1, levels, story: normalizeStorySeen(progress.story) },
+    dailyStats: normalizeDailyStats(s.dailyStats),
+    bestScores,
+  };
 }
 
 function bestScoreKeys() {
@@ -91,7 +98,8 @@ function clearLocalSave() {
 //
 // Two copies of a save (this device's and the account's) combine so nothing
 // earned on either is lost: a level beaten on either counts, keeping the best
-// of each stat (the same rule recordLevelComplete uses); best scores keep the
+// of each stat, and the most stars (the same rule recordLevelComplete uses), and
+// a cutscene seen on either counts as seen; best scores keep the
 // fewest moves; daily stats keep the most advanced streak and the higher
 // lifetime counts, and combine today's completions when both are from the
 // same day.
@@ -106,11 +114,16 @@ function mergeProgress(a, b) {
   const levels = { ...a.levels };
   Object.entries(b.levels).forEach(([id, rec]) => {
     const prev = levels[id];
-    levels[id] = prev
-      ? { moves: fewer(prev.moves, rec.moves), timeMs: fewer(prev.timeMs, rec.timeMs), deaths: fewer(prev.deaths, rec.deaths) }
-      : rec;
+    if (!prev) {
+      levels[id] = rec;
+      return;
+    }
+    levels[id] = { moves: fewer(prev.moves, rec.moves), timeMs: fewer(prev.timeMs, rec.timeMs), deaths: fewer(prev.deaths, rec.deaths) };
+    const stars = Math.max(prev.stars || 0, rec.stars || 0);
+    if (stars) levels[id].stars = stars;
   });
-  return { version: 1, levels };
+  // A cutscene seen on either device counts as seen.
+  return { version: 1, levels, story: normalizeStorySeen([...a.story, ...b.story]) };
 }
 
 function mergeBestScores(a, b) {

@@ -48,10 +48,20 @@ script.js    - themes (THEMES, THEME_TRAPS, trap names/descriptions),
                persistence — see Daily Puzzle below), page bootstrap
                (every screen: title, world/level select, campaign play,
                Creative Mode, Daily Puzzle, shared links)
-levels.js    - the campaign: 30 hand-built levels as readable maps
+sounds.js    - sound effects and background music, synthesized with the
+               Web Audio API (no audio files), plus the per-device mute
+               setting — see Sound below.
+               Loaded after sprites.js, before script.js.
+levels.js    - the campaign: 36 hand-built levels as readable maps
                (parseLevelMap), new-trap detection, unlock rules, and
                saved progress (see Campaign below). Loaded after
                script.js.
+story.js     - the story: its cutscenes as data (STORY_SCENES), when each
+               plays, and the cutscene player (see Story and cutscenes
+               below). Loaded after levels.js.
+badges.js    - chapter badges: which are earned, the account panel's badge
+               list and the award animation (see Chapter badges below).
+               Loaded after story.js.
 cloudsave.js - the player's whole save as one object: read/write/clear
                it in localStorage, and the rules for merging two copies
                (see Accounts and cloud saves below). No Firebase here, so
@@ -71,7 +81,7 @@ Play at Home.command - double-click to serve the game to devices on the
                home Wi-Fi (see Hosting below)
 favicon.svg  - browser-tab icon, linked from index.html
 tests.html   - minimal page that loads sprites.js + script.js + levels.js +
-               cloudsave.js + tests.js, for running the sanity checks below
+               story.js + badges.js + cloudsave.js + tests.js, for running the sanity checks below
                in a browser console
 tests.js     - plain-assertion sanity checks for isSolvable()/solveBFS(),
                every trap's rules, the encodeLevel/decodeLevel round trip,
@@ -112,6 +122,10 @@ exactly as before, saving on the device only.
 | `mushroom`                                                   | Mushroom pad: bounces you 2 tiles on, over any non-solid tile |
 | `snapjaw`                                                    | Solid flytrap; bites its 4 neighbors every 6 ticks |
 | `boar-h` / `boar-v`                                          | Wild boar's starting tile; charges its row/column 2 tiles per tick |
+| `lever`                                                      | Flips on/off each time the player moves onto it; the goal is locked (solid) until every lever in the room is on — see Levers below |
+| `crusher`                                                    | Castle: a stone block on a 6-tick cycle — up (walkable) 3, slams (deadly) 1, down (solid) 2 — see Castle traps below |
+| `plate` / `gate`                                             | Castle: pressure plate / portcullis — every plate press flips every portcullis in the room (they start shut, i.e. solid) |
+| `ghost`                                                      | Castle: the ghost's starting tile (floor underneath); it chases the player through walls — see Castle traps below |
 | `start`                                                      | Player's starting tile                     |
 | `goal`                                                       | Win tile                                   |
 
@@ -251,6 +265,73 @@ blocked. (Standing still on ice and pressing into a wall is still a no-op
 
 **Portals** pair by color; an unpaired portal is plain floor. Arriving by
 portal doesn't trigger the partner portal's own warp.
+
+## Levers
+
+A `lever` is floor with one bit of state: an object slot (after bombs,
+thin ice and icicles — see `buildHazardContext`) that's `LEVER_OFF` (0)
+or `LEVER_ON` (1). `resolveMove` flips a lever every time the player
+*enters* it — walking, or at the end of a slide or push (slides stop on a
+lever, since it isn't ice); a mushroom hop over one doesn't count, and
+standing still doesn't either. It tracks the flips on a live copy of the
+states as it goes, so a move that flips the last lever can carry on into
+the exit it just opened; the move reports them as `flippedLevers` (a slot
+entered twice is listed twice) and `applyMoveToObjects` applies them.
+
+`isExitLocked(ctx, states)` is true while the room has levers and any is
+off, and `isSolidAt` then treats the goal like a wall — it blocks moves,
+slides glance off it, mushrooms can't hop over it. Because lever states
+are object states, solveBFS/parMoves search them like any other object,
+so "solvable" means "can end with every lever on and reach the goal".
+Dying resets every lever to off (like every object). `MAX_LEVERS` (4)
+caps them in Creative Mode; they cost no trap points. The goal draws as
+`goal-locked` (a dimmed gem behind iron bars, no pulse) while locked, and
+flashes (`goal-unlocked`) when it opens; a flipped lever pops
+(`lever-flipped`). Solver mode's message line counts levers on, or says
+the exit just opened or just locked again.
+
+## Castle traps
+
+The castle world's own traps, all built into the same shared rules
+(`hazardAt`/`isSolidAt`/`resolveMove`/`advanceObjects`) as everything
+else, so the solver and live play can't disagree:
+
+- **Crusher** (`crusher`): purely tick-based — `crusherPhase(tick)` of
+  `CRUSHER_PERIOD` (6): up on 0–2 (walkable; `isCrusherWarningAtTurn` on 2
+  shakes it via the `vent-warning` class), slamming on 3 (`hazardAt` says
+  `'crusher'`), down on 4–5 (`isCrusherDownAtTurn` — solid). Solidity now
+  depends on the tick, so `isSolidAt`/`canStepOnto`/`iceSlideDirection`
+  take an optional `tick` (without one, a crusher counts as up).
+  Hazards pass a crusher at every phase; imps/boars never patrol across
+  one. Two crushers in a row fit one up-window; three can't be crossed.
+- **Pressure plate + portcullis** (`plate`, `gate`): one room-wide object
+  slot, `ctx.gateSlot` (`GATES_CLOSED` 0 / `GATES_OPEN` 1, shut at start).
+  Entering a plate — walking, or at the end of a slide or push, like a
+  lever — flips it, tracked on the move's live states so the rest of the
+  move sees the change; the move reports `pressedPlates` and
+  `applyMoveToObjects` applies them. `gatesOpen(ctx, states)`; a shut
+  portcullis is solid (`isSolidAt`). Portcullises are bars: hazards
+  always pass through, and patrols never cross them.
+- **Ghost** (`ghost`, at most `MAX_GHOSTS` = 1): its tile is an object
+  slot, `ctx.ghost.slot`, starting at its spawn tile. `advanceObjects
+  (ctx, states, playerIdx, tick)` now takes the player's tile and the
+  tick being entered; on every `GHOST_PERIOD`-th (2nd) tick the ghost
+  takes one `ghostStep` toward the player — along the axis that's
+  farther off (horizontal on a tie), or the other if that step would
+  enter the start or goal (it never does), straight through walls.
+  `hazardAt` returns `'ghost'` on its tile. Moves resolve before the ghost
+  moves, in solveBFS (advance after the move, then the "survive the next
+  tick" check) and in live play (keypresses judged against the current
+  ghost; `advanceWorldTo` moves it on the tick), so they agree. Because
+  its tile is a multi-digit number, rooms with a ghost join object states
+  with commas in solveBFS keys. `GHOST_PERIOD` is folded into the cycle.
+  Dying sends it back to its spawn (all objects reset).
+
+Castle reskins of shared traps (same rules, new art and names): Iron
+Spikes, Spiked Floor, Trapdoor (hidden spike), Carved Arrow, Magic Mirrors
+(portals), Crossbow (turret, bolts), Powder Barrel (bomb), Rotten
+Floorboards (thin ice), Castle Lever. `TRAP_NAMES` entries missing a
+theme fall back to the lava name.
 
 ## Level object shape
 
@@ -524,8 +605,16 @@ packed-ice walls with frost, icicle spikes, bright slick ice, frost
 cannons shooting ice shards, cyan/pink aurora portals, a cyan crystal
 goal. Grass: mossy flagstones with tufts, dark mossy walls, thorn spikes
 on wood, streams (water currents), gold/blue fairy rings, an emerald
-goal. Contrast rule for all three: walls darkest, floor mid, hazards and
-the goal brightest.
+goal. Castle: cracked dusty flagstones with cobwebs, crumbling grey-violet
+walls (a chipped corner, a crack, a web — `wallAccent: 'crumble'`), iron
+spikes, a purple-and-gold banner, a moonstone gem, magic mirrors
+(`portalStyle: 'mirror'`), a wall-mounted crossbow (`turretStyle`), powder
+barrels (`bombStyle`), rotten floorboards (`thinIceStyle`), the crusher,
+plate, portcullis and ghost art, a moonlit ruined-castle backdrop
+(`makeCastleBackdropFrame`) and a steel-helm / purple-tunic / crimson-cloak
+player. Its music is a slow harmonic-minor waltz (`MUSIC_THEMES.castle`).
+Contrast rule for all of them: walls darkest, floor mid, hazards and the
+goal brightest.
 
 - `buildThemeTextures(theme)` builds a theme's full tile set; every
   floor-based tile (start, goal, portals, bombs, icicles, vines,
@@ -593,6 +682,23 @@ block is enough per state (no separate bob animation layered on top):
 | `anim-walk`           | every accepted, non-dangerous move | one 2-frame step cycle + bounce, `animation-fill-mode: forwards` so it holds the walk-cycle's last frame (== the idle pose) once it finishes, rather than reverting to no background-image at all |
 | `anim-hit`            | a spike/active-timedspike death  | one hit-recoil frame + a shake + a brightness/saturation flash, also `forwards` |
 | `anim-win`            | reaching the goal                | an infinite loop between the win pose and the idle pose — safe to loop forever since reaching the goal freezes input (`won` short-circuits the keydown handler), so nothing re-renders the element out from under it |
+| `anim-slip`           | a move across ice                | leaning back, feet out, flailing between the hit and stride frames |
+| `anim-shove`          | a move pushed by a current       | stumbling forward, legs scrambling |
+| `anim-bounce`         | a mushroom bounce                | arms up (win frame), squash and stretch |
+| `anim-warp`           | a portal jump                    | spinning while the glide shrinks/pops the player |
+| `anim-held`           | held by vines                    | a side-to-side struggle |
+
+The four travel poses (`slip`/`shove`/`bounce`/`warp`) come from
+`TERRAIN_ANIMATIONS` in [script.js](script.js) — the one table that says
+how the player looks on each kind of ground (keyed by `tileFamily`). A
+move's pose is the `travel` of the first tile on its path that has one
+(`travelPoseFor`), else `walk`; it lasts exactly as long as the move. A
+tile's `stance` is an extra motion layered over any pose while the player
+stands there (`terrainStanceAt`), on its own `.player-terrain` element
+between `.player-slide` and `.player-sprite`: `terrain-wobble` (teetering)
+on intact thin ice and under a shaking icicle — ground about to give way —
+and `terrain-shiver` (jitter + cold glow) on frost. What the ground *does*
+to movement stays in `resolveMove`; the table only covers the look.
 
 `anim-walk`/`anim-hit` need `forwards` because `renderLevel` builds a
 *brand-new* `.player-sprite-inner` element on every move (the whole grid
@@ -782,6 +888,14 @@ if either is missing).
   in order; replays keep the best stats; reset clears everything).
 - Themes: per-theme trap names, unknown theme -> lava, and a shared link
   keeps its theme through encode/decode.
+- Badges: one per world with art; none at the start; earned only when
+  every level of the world is beaten; the finishing win earns it (a replay
+  doesn't); levels beaten on two devices add up to one.
+- Story: every scene is well-formed (known step kinds, stage maps parse,
+  actors/props exist before they're used, known looks/poses/props/sounds);
+  one scene per world, after its last level only; when the prologue plays;
+  what the Story list unlocks; the seen list normalizes, merges as a union
+  across devices, clears with a campaign reset and survives a win.
 - `isOnewayPassable()` / `isTimedSpikeActiveAtTurn()`: direct checks on the
   direction/phase logic those `isSolvable()` cases exercise indirectly.
 - `encodeLevel()`/`decodeLevel()`: an ordinary level round-trips and its
@@ -886,20 +1000,82 @@ keypress is one tile of movement:
      struggle pose, and the `vine-wrap` overlay is drawn over them —
      matching solveBFS's forced waits exactly.
 
-**Multi-tile moves are animated.** When `resolveMove`'s `path` is longer
-than one tile (ice slide, current push, mushroom bounce, portal warp), the
-player visibly glides along it instead of jumping straight to the end:
-`slideTimeline` gives each tile an arrival time (`SLIDE_MS_PER_TILE` =
-85ms, a portal jump or mushroom hop twice that), `renderLevel` animates
+**Every move is animated.** The player never jumps between tiles: they
+glide along `resolveMove`'s `path`. `slideTimeline` gives each tile an
+arrival time — a plain one-tile step is a walk (`WALK_STEP_MS` = 150ms,
+eased in and out); every tile of a multi-tile move (ice slide, current
+push, mushroom bounce, portal warp) takes `SLIDE_MS_PER_TILE` = 85ms at a
+steady speed, a portal jump or mushroom hop twice that. `renderLevel` animates
 the `.player-slide` wrapper with the Web Animations API (`slideKeyframes`
 — translates in whole tiles plus the grid gap; warps shrink out and pop
 back in, hops arc up over the tile in between) resuming at the elapsed time
 on every re-render, each ice tile crossed plays an `ice-glint` flash timed
-to the player's arrival, and the player holds a leaning `anim-slide` skid
-pose. Input is ignored until the glide lands (`inputLockedUntil`), and a
-death or win at the end of a slide is deferred (`outcomeTimer`) until the
-player visibly gets there. The game logic itself still resolves the whole
-move instantly, at the keypress's tick, exactly as solveBFS assumes.
+to the player's arrival, and the player holds the move's travel pose (see
+Player character and animation states). Input is ignored — not queued —
+until the glide lands (`inputLockedUntil`), and a death or win at the end
+of a move is deferred (`outcomeTimer`) until the player visibly gets
+there. The game logic itself still resolves the whole move instantly, at
+the keypress's tick, exactly as solveBFS assumes. Thin ice left behind
+caves in (an `ice-collapse` slab over the broken tile, timed to when the
+player leaves it — `collapses`, passed to `renderLevel` as
+`world.collapses`), and intact thin ice under the player creaks
+(`thinice-underfoot`).
+
+**Moving hazards glide too.** `hazardOverlaysFor` gives each imp, boar
+and fireball overlay a `from` list (the tiles it crossed this tick; a
+fireball's previous tile is stored as `from` in `fireballDistances`), and
+`renderLevel` glides it in over the first `MOVER_GLIDE_MS` = 180ms of the
+tick (`world.tickElapsedMs`) via a `.hazard-mover` wrapper, so the
+sprite's own hop/trot animation keeps its transform. The game counts it
+as there from the start of the tick, which is why the glide is short.
+
+### Touch controls
+
+Every way of moving goes through startSolverMode's `tryMove(dx, dy)` —
+one call, one move, ignored while the last move is still animating:
+the keyboard (`handleKeydown`), a swipe on the grid (touchstart/touchend;
+at least `SWIPE_MIN_PX` = 24px, along whichever axis moved further — a
+shorter touch is a tap and does nothing), and the on-screen D-pad
+(`#dpad`, four buttons with `data-dir`, pointerdown). The D-pad is
+un-hidden by startSolverMode, but CSS only shows it on touch screens
+(`@media (hover: none) and (pointer: coarse)`). While playing,
+`body.playing` gives the grid and pad `touch-action: none` (and the grid
+listeners `preventDefault`), so swiping never scrolls or zooms the page,
+and on touch screens the grid shrinks to fit the header, pad and hint on
+one screen (`calc(100dvh - 482px)`, never under 200px). Creative Mode
+still needs a mouse: its drag and drop is HTML5 drag events, which
+touch screens don't send.
+
+### Sound
+
+[sounds.js](sounds.js) synthesizes every sound with the Web Audio API:
+`SOUNDS` maps each name to a few short oscillator tones and filtered
+noise bursts (`tone`, `noise`, `arpeggio`), all under one quiet master
+gain (`MASTER_VOLUME`). The AudioContext is created or resumed on the
+first key press, click or touch (browsers block sound before that), and
+`playSound(name)` is a no-op until then or while muted. Solver mode
+plays: `step` (alternating pitch), `bump` (blocked move), the travel
+poses' `slip`/`shove`/`bounce`/`warp`, `crack` (thin ice), `fuse`,
+`blast` (a bomb going off, detected in `advanceWorldTo`), `icicle-crack`
+/ `icicle-crash`, `grab` (vines), `lever`, `unlock`/`lock` (the exit),
+`death`, `win` and `timeup`. Turrets, vents and snapjaws stay silent —
+they fire every few beats forever, which would grate. `#mute-btn` (top
+right, beside the account button) toggles `localStorage['trapRoomMuted']`
+— sound and music together, a device preference, not part of the synced
+save.
+
+**Music**: a faint looping tune (`MUSIC_VOLUME`, well under the sound
+effects), sequenced live: every eighth note `playMusicStep` may play a
+bass note, a pad chord (first beat of each bar) and a melody note, a
+100ms timer scheduling ~0.3s ahead (`scheduleMusic`). `MUSIC_THEMES` gives
+each area its own key, scale, tempo, 4-chord loop, 4-bar tune and
+instruments: `home` (calm A minor, the menus), `lava` (darker D
+phrygian, lower, faster), `ice` (slow, high E-lydian chimes with an
+echo), `grass` (bouncy G major with a walking bass). `setMusic(area)`
+crossfades; the bootstrap sets `home`, startSolverMode switches to the
+room's theme and its stop() switches back. The music starts with the
+first gesture (like the sound effects), stops while muted, and the whole
+AudioContext is suspended while the tab is hidden.
 
 ### Hazards killing a stationary player
 
@@ -943,8 +1119,10 @@ together (with `playerPos`/`won`/`facing`/`animState`) by one `resetRun()`
 function so there's a single place that defines "what a fresh run looks
 like":
 
-- `moveCount` counts every accepted keypress, including ones that end in a
-  spike death (death doesn't reset it). This is purely a UI/scoring
+- `moveCount` counts the accepted keypresses of the current life: every
+  death (`killPlayer`) resets it to 0, so the moves shown — and the ones a
+  win is scored, starred and best-scored on — are the winning life's
+  alone. This is purely a UI/scoring
   counter now — it does **not** drive hazard timing (see `timedspike`
   above and `startTime`/`timerId` below for what does).
 - `deathCount` counts every call to `killPlayer` (moving into something
@@ -994,7 +1172,8 @@ unhides `#win-modal` — a `position: fixed; inset: 0` overlay
 `#win-modal[hidden] { display: none; }` override — see the `[hidden]`
 pitfall note below) that sits on top of the grid until "Play Again"
 (`#win-modal-reset-btn`, wired to the same `resetRun()`) is clicked.
-`onWin({ moves, deaths, elapsedMs })` then lets the caller react: the
+Above the stats, `#win-modal-stars` shows the run's star rating and par
+(see Star ratings). `onWin({ moves, deaths, elapsedMs, stars })` then lets the caller react: the
 campaign records progress and shows Next Level / ← Levels (plus an
 unlock note in `#win-modal-unlock`), the Daily Puzzle records the
 challenge and shows Back to Daily Puzzle. Input is ignored while the win
@@ -1055,6 +1234,22 @@ changing one difficulty's or type's generation can never affect another's.
 `getTodayDateString()` reads the player's *local* date (not UTC) as
 `YYYY-MM-DD`, since the puzzle should roll over at the player's own
 midnight.
+
+**Levers**: after a solver room is settled, `addDailyLevers` rolls a
+separate seed (`dailySeedFor(date, 'levers', difficulty)`): on
+`DAILY_LEVER_CHANCE` (40%) of days it drops `DAILY_LEVER_COUNTS`
+(easy 1, medium 2, hard 3) levers on open floor away from the start,
+trying up to 12 placements that keep the room solvable, else leaving it
+lever-free. Because it's a separate roll after the room, a day without
+levers is exactly the room it always was. Builder challenges get levers
+through the theme palettes (`THEME_TRAPS`).
+
+**Castle days**: on roughly `DAILY_CASTLE_CHANCE` (1 in 7) of dates —
+chosen by hashing the date, so everyone gets the same ones — the castle
+takes over the daily puzzle; every other date keeps exactly the rotation
+below, so adding the castle didn't move any other date's theme. Castle
+rooms use crushers, floorboards, crossbows, plates and portcullises (plus
+a powder barrel from medium and the ghost on hard).
 
 **Theme rotation**: `dailyThemeFor(dateStr)` picks lava, ice, grass,
 lava, … by calendar day (the day number comes from the date string as a
@@ -1213,18 +1408,27 @@ what a previous daily builder challenge left them at.
 
 ### Levels ([levels.js](levels.js))
 
-`CAMPAIGN_LEVELS` holds 30 hand-built levels, 10 per theme, played in
+`CAMPAIGN_LEVELS` holds 48 levels, 12 per theme, played in
 order — each `{ id, theme, name, idea, map, timeLimit? }`. `map` is one
 string per row, one space-separated token per tile (`LEVEL_TOKENS`: `#`
 wall, `.` floor, `S`/`G`, `^` spike, `t` timed, `h` hidden, `o^ o> ov o<`
 one-ways, `T^…` turrets, `V^…` vents, `C^…` currents, `I-`/`I|` imps,
 `B-`/`B|` boars, `b` bomb, `i` ice, `pa`/`pb` portals, `=` thin ice, `*`
-frost, `!` icicle, `%` vines, `m` mushroom, `J` snapjaw).
+frost, `!` icicle, `%` vines, `m` mushroom, `J` snapjaw, `L` lever,
+`X` crusher, `P` pressure plate, `g` portcullis, `@` ghost).
 `parseLevelMap(rows, theme)` throws on an unknown token or a non-square
 map; `campaignLevel(id)` returns a fresh level object every call.
 
 Levels 1–10 get steadily harder within each theme (9 and 10 are the
-hardest), and each theme introduces its traps one or two at a time. Every
+hardest), and each theme introduces its traps one or two at a time.
+Levels 11–12 of each theme are its lever rooms (Switchback/Powder Keg,
+Brittle Switches/Cold Circuit, Leapfrog Levers/Switchyard) and its
+hardest: long routes where levers meet things you can't undo (one-ways,
+thin ice, bombs). They were found with a solver-guided search that
+favoured a long par and a high share of doomed states, then checked by
+hand. tests.js checks each lever room's par beats every level before it
+in its world (so the world still runs easy to hard), and that it's longer
+to solve with its levers than without them. Every
 level is solvable by solveBFS, and tests.js also plays nothing it can't
 back up: only the theme's own traps, within Creative Mode's caps. A few
 were designed with the solver's help — slide/thin-ice layouts were chosen
@@ -1232,6 +1436,21 @@ for a high share of "doomed" states (positions you can reach alive but
 can no longer win from), and icicle levels were checked to be unsolvable
 without the icicle. Timed rooms (`timeLimit`): Lava 5 (15s), Ice 5 (25s),
 Grass 5 (28s), each at least double the bot's time plus 4 seconds.
+
+The **castle** (bonus world) is harder from its first room and harder
+every level after: par rises strictly level to level (24 → 92), its first
+room's par beats the median mid-world (levels 5–8) par, and The Last Lock
+(castle 12) has the longest par in the game — tests.js checks all three.
+Its levels were found by a solver-guided search over carved mazes (each
+level's traps dropped onto the corridors, scored on par and the share of
+doomed states, and required to route the winning path through that
+level's new trap), then named and checked by hand. Traps are introduced in
+order: crushers and carved arrows (1), plates and portcullises (2),
+floorboards (3), crossbows (4), the ghost (5), powder barrels (6), magic
+mirrors (7), trapdoors (8), castle levers (11). Its two timed rooms —
+Powder Store (6, 39s) and The Oubliette (9, 57s) — are tighter than other
+worlds': at least 1.5× the bot's time plus 3 seconds, and no more than the
+2× + 4s rule elsewhere.
 
 `levelIntroductions(id)` derives the "New trap!" card: one representative
 tile per trap family appearing in this level but in no earlier level of
@@ -1244,16 +1463,39 @@ beaten yet; the run (and its clock) starts when they press Start.
 
 - Lava is always unlocked. Ice unlocks once `UNLOCK_REQUIREMENT` (8) lava
   levels are completed; grass once 8 ice levels are. (`isThemeUnlocked`)
+- The **Abandoned Castle** is the bonus world (`BONUS_THEMES`; the others
+  are `MAIN_THEMES`): it unlocks only once **every** level of every main
+  world is beaten (`bonusProgress` — counts whatever levels those worlds
+  hold), stars not required. Its locked card shows "n / total" and each
+  world's count; grass level 8 carries no 🔑 (it doesn't open the castle
+  alone — `nextMainTheme`). The win that completes the last main-world
+  level announces the castle opening.
 - Within an unlocked theme, level 1 is open and level n opens once level
-  n−1 is beaten (`isLevelUnlocked`) — so "8 of 10" means beating levels
-  1–8.
+  n−1 is beaten (`isLevelUnlocked`) — so "8 of the world's levels"
+  means beating levels 1–8.
 - Completing a level = reaching the goal once.
 - `localStorage['trapRoomProgress']` = `{ version: 1, levels: { [id]:
-  { moves, timeMs, deaths } } }` — a level is complete once it has an
-  entry, which keeps the best of each stat (`recordLevelComplete`). Keyed
+  { moves, timeMs, deaths, stars? } }, story: [sceneId] }` (`story`: the
+  cutscenes seen, sorted — see Story and cutscenes) — a level is complete once it has
+  an entry, which keeps the best of each stat and the most stars
+  (`recordLevelComplete`; `stars` is missing for wins from before star
+  ratings until the level is replayed). Keyed
   by id, never position. `loadProgress`/`saveProgress`/`resetProgress`
   wrap storage in try/catch like the daily stats.
 - Daily Puzzle, Creative Mode and shared links never touch progress.
+
+### Star ratings
+
+Par is the fewest moves that beat a level — `parMoves(level)`, the same
+search as solveBFS but with waiting free (a layered search where a wait
+costs 0 and a move 1), since the move counter doesn't count waiting.
+`starsFor(moves, par)`: 3 stars at par or better, 2 for up to 50% over
+(`floor(par × 1.5)`), 1 for any finish. `campaignPar(id)` caches each
+campaign level's par for the session and is passed to startSolverMode as
+`par`; other rooms (daily, shared) work theirs out at the first win.
+Every run's win card shows its stars and par (`#win-modal-stars`); only
+the campaign saves them (`levelStars`, `themeStars`), shown on each level
+plate and as a "★ n / 36" total on the world and level screens.
 
 ### World select and level select
 
@@ -1267,15 +1509,104 @@ show the preview greyscale and dimmed under a lock. The page backdrop
 switches with the world shown. A "Reset progress" link sits underneath
 (two-step confirm).
 
-`#level-select` shows the world's 10 levels as `.level-plate` buttons
-(5 × 2; 2 columns on phones): number (or 🔒), name, and tags — ⏱ for a
+`#level-select` shows the world's 12 levels as `.level-plate` buttons
+(6 × 2; 3 columns on phones): number (or 🔒), name, best stars, and tags — ⏱ for a
 timed room, 🔑 on the level that unlocks the next world, ✓ and best moves
 once beaten; the level's idea is its tooltip. Clicking an open plate calls
 `startCampaignLevel(id)`, which shows `#level-heading` ("Ice 6 · Icefall
 · ⏱ 25s"), the level's idea as a hint under the grid, and a ← Levels
 button. On a win, `handleCampaignWin` records progress and fills in the
 win modal: an unlock note ("🔓 Frozen Caverns unlocked!", "👑 Every Lava
-level complete!") and Next Level (hidden after level 10).
+level complete!") and Next Level (hidden after level 12).
+
+## Story and cutscenes
+
+Why the player is in these rooms ([story.js](story.js)). The Trapwright —
+the player's master, a legendary trap-maker — has vanished, leaving an
+empty workshop and a note ("Look for me"). Each world ends with a page of
+the master's journal, each stranger than the last, and a glimpse of a
+shadow shaped like the master. In the castle, the ghost turns out to be
+the master, bound there until someone beats every trap they ever built;
+they hand over their tools and fade. The epilogue loops back to the
+workshop: the player, now the Trapwright, leaves a note of their own.
+
+`STORY_SCENES`: `opening` (Prologue: The Empty Workshop), `lava` (I · Fire
+Is Honest), `ice` (II · Footsteps), `grass` (III · The Garden That Grew)
+and `finale` (IV · The Last Lock). Each is `{ id, label, title, theme,
+after, steps }`; `after` is the world whose last level plays it. Steps are
+a small script — lay out a stage, fade in/out, title cards, put
+actors/props on stage, walk, face, pose, fade, change a tile, captions
+(`say`, typed out, click to continue), journal pages (`note`), waits,
+sounds, shakes and flashes; the comment at the top of story.js lists them.
+
+- **Stage**: 12 × 6 tiles (`STAGE_COLS`/`STAGE_ROWS`), written in the
+  campaign's own `LEVEL_TOKENS` and drawn with that theme's tile art
+  (`parseStageMap`, `themeTexture`).
+- **Actors**: the player in the world's outfit (`THEME_PLAYER_FRAMES`), the
+  master and the shadow (`STORY_ACTOR_FRAMES` in sprites.js — the player's
+  own poses with a beard and their own palettes, so every pose lines up),
+  and the castle ghost. Props: journal page, tools, workbench (new in
+  sprites.js, `STORY_PROP_TEXTURES`), the title torch, a theme's goal gem
+  and the icicle crash.
+- **Sound**: `page`, `rumble` and `shimmer` effects and a `story` music
+  theme in sounds.js; the music the player came from comes back after.
+
+When they play (each by itself only once — seen ids are kept in
+`progress.story`, marked the moment a scene starts, so skipping counts):
+
+- **Prologue**: pressing Play on the title screen in a new game — nothing
+  beaten and the prologue never seen (`shouldPlayOpening`). It plays over
+  the world select. A player whose game was under way before the story
+  existed doesn't get it automatically.
+- **A world's chapter**: `STORY_AFTER_WIN_MS` after the first win on that
+  world's last level (`storySceneAfterLevel`), over the win card, which is
+  still there when it ends. Not if the player left the room first.
+- **Finale**: the same, after castle 12 — reachable only once every level
+  of every world is beaten.
+
+Skip (the button or Escape) ends a scene at once. A click, Space or Enter
+finishes typing, then moves on. While a scene plays, it takes every key
+(a capture-phase listener on window), so nothing behind it reacts. The
+world select's 📜 Story link opens `#story-modal`, which lists every scene
+to rewatch. The prologue is always there; the others unlock once their
+world's last level is beaten or they've been seen (`isStoryUnlocked`), and
+locked ones say what opens them. A campaign reset forgets the seen list
+too, so the next Play starts with the prologue again.
+
+## Chapter badges
+
+One badge per world ([badges.js](badges.js), `BADGES`): the Ember Seal
+(Volcanic Depths), Frost Sigil (Frozen Caverns), Verdant Crest (Overgrown
+Ruins) and Trapwright's Crown (Abandoned Castle). A badge's id is its
+world's theme. It's earned by beating every level of that world
+(`isBadgeEarned`) — worked out from campaign progress, never saved on its
+own, so badges sync, merge across devices and clear with a campaign reset
+exactly like the levels do.
+
+- **Art** (sprites.js, `BADGE_TEXTURES`): a 24 × 28 pixel medal on a
+  notched ribbon, `makeBadgeFrame(emblem)` — the world's metal and colors
+  (`BADGE_PALETTES`) around its emblem (`BADGE_EMBLEMS`: flame, snowflake,
+  leaf, crown).
+- **The award** (`showBadgeAward`, `#badge-award`): the medal drops in
+  spinning like a coin, lands with a bounce and hovers, a shine sweeps
+  across it (masked to the medal's shape), light rays turn behind it, and
+  the world's weather fills the screen — embers rising, snow falling,
+  leaves tumbling, castle sparkles twinkling (CSS particles whose place and
+  timing are random custom properties). A `badge` fanfare plays (sounds.js).
+  It stays up until Nice! (or Enter/Space/Escape, after a short grace so a
+  key held from the cutscene doesn't close it), and takes every key while
+  up, like a cutscene. It notes the badge was added to the account (or,
+  for a guest, to log in or sign up to keep it).
+- **When**: the win that finishes a world (`badgeEarnedByWin`), right after
+  that world's cutscene ends or is skipped. If the cutscene doesn't play
+  (seen already, or the player left the room), the badge shows by itself
+  `STORY_AFTER_WIN_MS` after the win. A world finished on another device
+  just appears in the list.
+- **The list** (`renderBadgeList`): the account panel's Badges section
+  (`#account-badges`, above Your icon) shows all four — earned ones in
+  color (click to see the award again), the rest as dark silhouettes whose
+  tooltip says how to earn them. A guest who has earned any sees theirs
+  under the log-in form (`#account-guest-badges`), with a nudge to sign up.
 
 ## Visual polish
 
@@ -1340,8 +1671,9 @@ screen's layout was inspired by) — progress is picked up automatically
 browser tab, so those two
 didn't get a reskinned equivalent; the five buttons instead map directly to
 the app's five real entry points (the campaign, Daily Puzzle, Creative
-Mode, instructions, credits). How To Play is split into Everywhere /
-Volcanic Depths / Frozen Caverns / Overgrown Ruins sections.
+Mode, instructions, credits). How To Play opens with the basics, stars,
+the story and badges, then is split into Everywhere / Volcanic Depths /
+Frozen Caverns / Overgrown Ruins / Abandoned Castle sections.
 
 ### Live streak sign
 
@@ -1493,7 +1825,9 @@ exactly as it always has.
 ### What syncs
 
 Everything the game saves (`readLocalSave()` in
-[cloudsave.js](cloudsave.js)): campaign progress (`trapRoomProgress`),
+[cloudsave.js](cloudsave.js)): campaign progress (`trapRoomProgress`,
+stars included — merging keeps the most stars — and the cutscenes seen,
+merged as a union),
 Daily Puzzle stats (`trapRoomDailyStats`), and every best score
 (`trapRoomBestScore:*`), plus the profile icon. Creative Mode rooms aren't
 saved anywhere yet, so they don't sync either.

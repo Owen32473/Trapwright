@@ -9,6 +9,7 @@
 </head>
 <body>
   <button id="home-btn" class="pixel-btn" type="button" hidden>← Home</button>
+  <button id="mute-btn" class="pixel-btn" type="button" aria-pressed="false" aria-label="Mute sound and music">🔊</button>
   <button id="account-btn" class="pixel-btn" type="button" aria-haspopup="dialog" aria-label="Log in or sign up">
     <span id="account-btn-icon" aria-hidden="true"></span>
   </button>
@@ -50,13 +51,17 @@
   <div id="title-howto-modal" class="title-modal" hidden>
     <div class="title-modal-card">
       <h2>How To Play</h2>
-      <p>Move with Arrow Keys or WASD — one step per keypress. Reach the glowing gem to win. Traps keep their own rhythm (one beat is half a second), so don't linger.</p>
-      <p>Play the three worlds in order: beat 8 of a world's 10 levels to unlock the next. The Daily Puzzle lets you try every world, even locked ones.</p>
+      <p>Move with Arrow Keys or WASD — one step per keypress. On a phone or tablet, swipe on the room or use the arrow pad. Reach the glowing gem to win. Traps keep their own rhythm (one beat is half a second), so don't linger.</p>
+      <p>Play the three worlds in order: beat 8 of a world's levels to unlock the next. Each world ends with its two hardest rooms, both full of levers. Beat every level of all three to open the bonus world, the Abandoned Castle — the hardest rooms in the game. The Daily Puzzle lets you try every world, even locked ones.</p>
+      <p>★ Stars: finish in par — the fewest moves possible — for 3 stars, within half as many again for 2, or any finish for 1.</p>
+      <p>📜 Story: your master, the Trapwright, has vanished. Each world you finish reveals a new chapter of the search. Rewatch them any time from 📜 Story on the world screen.</p>
+      <p>🏅 Badges: beat every level of a world to earn its badge. See yours in your account panel (the button in the top-right corner).</p>
       <h3>Everywhere</h3>
       <ul>
         <li>Spikes kill on contact. Timed spikes are deadly for 2 beats, then safe for 2. Hidden spikes look like plain floor until they get you.</li>
         <li>One-way tiles only let you in from the direction their arrow points. Portals warp you to their matching twin.</li>
         <li>The start and goal are safe: no fire, creature or blast can reach them.</li>
+        <li>Levers flip each time you step onto them. While any lever is off, the gem is barred shut — get every lever on, then reach it.</li>
       </ul>
       <h3>Volcanic Depths</h3>
       <ul>
@@ -76,6 +81,13 @@
         <li>Snapjaws rustle, then bite the 4 tiles around them every 6 beats. Wild boars charge 2 tiles per beat.</li>
         <li>Streams carry you along; fairy rings are the ruins' portals.</li>
       </ul>
+      <h3>Abandoned Castle</h3>
+      <ul>
+        <li>Crushers are up for 3 beats (they shake on the third), slam down on the 4th, then stay down — solid — for 2.</li>
+        <li>Every pressure plate flips every portcullis: open ones shut, shut ones open. They all start shut.</li>
+        <li>The ghost drifts a tile toward you every other beat, straight through walls — but it can't enter the start or the gem.</li>
+        <li>Rotten floorboards hold you once, like thin ice. Crossbows, powder barrels and magic mirrors work like turrets, bombs and portals.</li>
+      </ul>
       <p>⏱ Timed rooms: reach the goal before the clock runs out, or the room resets.</p>
       <button type="button" class="title-btn" id="title-howto-close-btn">Back</button>
     </div>
@@ -84,8 +96,8 @@
   <div id="title-credits-modal" class="title-modal" hidden>
     <div class="title-modal-card">
       <h2>Credits</h2>
-      <p>Trapwright — a pixel-art trap puzzler. Three worlds of hand-built rooms, a daily puzzle, and a Creative Mode to build and share your own.</p>
-      <p>Every tile, trap, and character is hand-generated pixel art rendered at runtime — no image files, no build step.</p>
+      <p>Trapwright — a pixel-art trap puzzler. Follow the story through three worlds of hand-built rooms and a bonus castle, earn a badge for each, take on the daily puzzle, and use Creative Mode to build and share your own rooms.</p>
+      <p>Every tile, trap, character and cutscene is hand-generated pixel art rendered at runtime, and every sound and tune is synthesized as you play: no image or audio files, no build step.</p>
       <p><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></p>
       <button type="button" class="title-btn" id="title-credits-close-btn">Back</button>
     </div>
@@ -110,6 +122,11 @@
         <div class="account-links">
           <button type="button" class="text-btn" data-view="forgot">Forgot password?</button>
           <button type="button" class="text-btn" data-view="signup">New here? Sign up</button>
+        </div>
+        <div id="account-guest-badges-wrap">
+          <h3>Your badges</h3>
+          <div id="account-guest-badges" class="badge-list" role="group" aria-label="Your badges"></div>
+          <p class="badge-list-note">Log in or sign up to keep them on an account.</p>
         </div>
       </form>
 
@@ -160,6 +177,8 @@
             <p id="account-sync-status"></p>
           </div>
         </div>
+        <h3>Badges</h3>
+        <div id="account-badges" class="badge-list" role="group" aria-label="Your badges"></div>
         <h3>Your icon</h3>
         <div id="account-icon-grid" role="group" aria-label="Choose your icon"></div>
         <button type="button" class="title-btn" id="account-logout-btn">Log Out</button>
@@ -204,6 +223,7 @@
     <div id="theme-progress" aria-hidden="true"><div id="theme-progress-fill"></div></div>
     <div id="theme-dots"></div>
     <button id="theme-levels-btn" class="pixel-btn" type="button">Levels</button>
+    <button id="story-btn" class="text-btn" type="button">📜 Story</button>
     <button id="reset-progress-btn" class="text-btn" type="button">Reset progress</button>
     <div id="reset-progress-confirm" hidden>
       <p>Erase every level you've beaten? This can't be undone.</p>
@@ -265,6 +285,7 @@
       <button type="button" data-theme="lava" aria-pressed="true">Lava</button>
       <button type="button" data-theme="ice" aria-pressed="false">Ice</button>
       <button type="button" data-theme="grass" aria-pressed="false">Grass</button>
+      <button type="button" data-theme="castle" aria-pressed="false">Castle</button>
     </div>
     <p id="builder-panel-hint">Drag a block onto the grid to place it. Click a placed turret, vent, current, imp, boar or one-way to rotate it. Every trap works in every look.</p>
     <div id="palette-list"></div>
@@ -296,9 +317,24 @@
 
   <div id="grid" hidden></div>
 
+  <div id="dpad" hidden aria-label="Move">
+    <button type="button" class="pixel-btn" data-dir="up" aria-label="Move up">▲</button>
+    <button type="button" class="pixel-btn" data-dir="left" aria-label="Move left">◀</button>
+    <button type="button" class="pixel-btn" data-dir="right" aria-label="Move right">▶</button>
+    <button type="button" class="pixel-btn" data-dir="down" aria-label="Move down">▼</button>
+  </div>
+
   <p id="validate-result"></p>
   <p id="solver-message"></p>
   <p id="best-score" hidden></p>
+
+  <div id="story-modal" class="title-modal" hidden>
+    <div class="title-modal-card">
+      <h2>Story</h2>
+      <ul id="story-list"></ul>
+      <button type="button" class="title-btn" id="story-close-btn">Back</button>
+    </div>
+  </div>
 
   <div id="share-output" hidden>
     <input id="share-link" type="text" readonly>
@@ -308,6 +344,7 @@
   <div id="win-modal" hidden>
     <div id="win-modal-card">
       <h2>You Win! 🎉</h2>
+      <p id="win-modal-stars" hidden></p>
       <p id="win-modal-stats"></p>
       <p id="win-modal-unlock" hidden></p>
       <div id="win-modal-actions">
@@ -319,9 +356,15 @@
     </div>
   </div>
 
+  <div id="cutscene" role="dialog" aria-modal="true" hidden></div>
+  <div id="badge-award" role="dialog" aria-modal="true" hidden></div>
+
   <script src="sprites.js" defer></script>
+  <script src="sounds.js" defer></script>
   <script src="script.js" defer></script>
   <script src="levels.js" defer></script>
+  <script src="story.js" defer></script>
+  <script src="badges.js" defer></script>
   <script src="cloudsave.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js" defer></script>

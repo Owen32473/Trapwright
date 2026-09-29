@@ -617,7 +617,7 @@ button.tile {
    never fight over the same property on one element. */
 /* .player-slide is the outermost player layer: it fills the tile and is
    what solver mode animates (Web Animations API, see slideKeyframes in
-   script.js) to glide the player across ice, currents, and portals. */
+   script.js) to glide the player from tile to tile on every move. */
 .player-slide {
   position: absolute;
   inset: 0;
@@ -629,6 +629,36 @@ button.tile {
    player isn't drawn underneath tiles that come later in the grid. */
 .tile.tile-has-slider {
   z-index: 4;
+}
+
+/* The ground's stance (see TERRAIN_ANIMATIONS in script.js), layered over
+   whatever pose the player is in: its own transform, between the glide
+   and the facing flip. */
+.player-terrain {
+  position: absolute;
+  inset: 0;
+}
+
+/* On ground that's about to give way: teetering from foot to foot. */
+.player-terrain.terrain-wobble {
+  transform-origin: 50% 95%;
+  animation: terrain-wobble 0.32s ease-in-out infinite alternate;
+}
+
+@keyframes terrain-wobble {
+  from { transform: rotate(-7deg) translateX(-3%); }
+  to { transform: rotate(7deg) translateX(3%); }
+}
+
+/* On frostbite: shivering, with a cold glow. */
+.player-terrain.terrain-shiver {
+  filter: saturate(0.7) drop-shadow(0 0 2px rgba(170, 220, 255, 0.9));
+  animation: terrain-shiver 0.08s steps(2) infinite alternate;
+}
+
+@keyframes terrain-shiver {
+  from { transform: translateX(-3%); }
+  to { transform: translateX(3%); }
 }
 
 .player-sprite {
@@ -770,6 +800,21 @@ button.tile {
   image-rendering: pixelated;
 }
 
+/* Wraps a moving hazard (imp, boar, fireball) while it glides into its
+   new tile (see glideOverlay in script.js), so the sprite's own animation
+   keeps its transform. Its tile is lifted so the glide isn't painted
+   under the neighbor it's coming from. */
+.hazard-mover {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.tile.tile-has-mover {
+  z-index: 3;
+}
+
 .hazard-flame {
   animation: hazard-flicker 0.18s steps(2) infinite alternate;
 }
@@ -843,9 +888,23 @@ button.tile {
 #builder-panel-toggle {
   position: fixed;
   top: 16px;
-  /* Left of #account-btn, which holds the corner. */
-  right: 76px;
+  /* Left of #mute-btn and #account-btn, which hold the corner. */
+  right: 136px;
   z-index: 21;
+}
+
+/* Sound on/off: the same square plate as #account-btn, just left of it. */
+#mute-btn {
+  position: fixed;
+  top: 16px;
+  right: 76px;
+  z-index: 120;
+  width: 50px;
+  height: 50px;
+  min-width: 0;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
 }
 
 #builder-panel-toggle[hidden] {
@@ -1025,6 +1084,31 @@ button.tile {
   color: #d4af37;
 }
 
+/* Star rating on the win card: three big stars, then what par was. */
+#win-modal-stars {
+  margin: 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+#win-modal-stars[hidden] {
+  display: none;
+}
+
+.star-row {
+  font-size: 2.2rem;
+  letter-spacing: 6px;
+  color: #ffcf4d;
+  text-shadow: 0 0 8px rgba(255, 207, 77, 0.6), 0 2px 0 #000;
+}
+
+.star-note {
+  font-size: 0.85rem;
+  color: #ccc;
+}
+
 #win-modal-stats {
   margin: 0 0 20px;
   font-variant-numeric: tabular-nums;
@@ -1103,6 +1187,12 @@ body[data-theme="grass"] {
   background-color: #07120b;
   --theme-accent: #9fd35a;
   --theme-glow: rgba(143, 208, 90, 0.2);
+}
+
+body[data-theme="castle"] {
+  background-color: #07060f;
+  --theme-accent: #c9b8ff;
+  --theme-glow: rgba(201, 184, 255, 0.2);
 }
 
 .text-btn {
@@ -1232,6 +1322,8 @@ body[data-theme="grass"] {
 #theme-status {
   margin: 0;
   color: #e6e6ee;
+  /* The castle's locked status runs over two lines. */
+  white-space: pre-line;
 }
 
 #theme-progress {
@@ -1321,7 +1413,7 @@ body[data-theme="grass"] {
 
 #level-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 10px;
   width: 100%;
 }
@@ -1385,9 +1477,20 @@ body[data-theme="grass"] {
   color: var(--theme-accent);
 }
 
+.level-plate-stars {
+  min-height: 1em;
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  color: #ffcf4d;
+}
+
+.level-plate-stars.none {
+  color: #777;
+}
+
 @media (max-width: 560px) {
   #level-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -1500,11 +1603,80 @@ body[data-theme="grass"] {
 .tile-thinice { background: #bfe3f5; }
 .tile-frost { background: #a3bdd6; }
 .tile-snapjaw { background: #4a4f40; }
+.tile-crusher,
+.tile-plate,
+.tile-gate,
+.tile-ghost { background: #57525e; }
+
+/* The ghost drifts and flickers. */
+.hazard-ghost {
+  inset: 2%;
+  opacity: 0.85;
+  animation: ghost-flicker 1.1s ease-in-out infinite;
+}
+
+@keyframes ghost-flicker {
+  0%, 100% { transform: translateY(0); opacity: 0.85; }
+  50% { transform: translateY(-8%); opacity: 0.6; }
+}
+
+/* A crusher slamming: the block drops in from above. */
+.hazard-crush {
+  z-index: 3;
+  animation: icicle-drop 0.15s ease-in 1 forwards;
+}
 .tile-icicle,
 .tile-vines,
 .tile-mushroom,
 .tile-boar-h,
 .tile-boar-v { background: #4a4038; }
+
+/* Thin ice creaks under the player standing on it. */
+.tile.thinice-underfoot {
+  animation: icicle-wobble 0.18s steps(2) infinite alternate;
+}
+
+/* Thin ice caving in once the player steps off: the intact slab shudders,
+   sinks and fades, leaving the broken tile underneath. `both` holds the
+   slab in place until its delay runs out (the player is still gliding
+   towards the edge). */
+.hazard-sprite.ice-collapse {
+  animation: ice-collapse 0.45s ease-in 1 both;
+}
+
+@keyframes ice-collapse {
+  0% { transform: none; opacity: 1; filter: brightness(1); }
+  25% { transform: translateX(-4%) rotate(-3deg); }
+  50% { transform: translate(4%, 4%) rotate(3deg) scale(0.9); opacity: 1; filter: brightness(0.85); }
+  100% { transform: translateY(14%) scale(0.5); opacity: 0; filter: brightness(0.5); }
+}
+
+/* A lever just thrown: a quick bright pop. */
+.tile.lever-flipped {
+  animation: lever-pop 0.3s ease-out 1;
+}
+
+@keyframes lever-pop {
+  0% { filter: brightness(1); }
+  30% { filter: brightness(1.9) saturate(1.4); }
+  100% { filter: brightness(1); }
+}
+
+/* The exit while any lever is off: barred, and without the gem's pulse. */
+.tile.tile-goal.goal-locked {
+  animation: none;
+  filter: saturate(0.7);
+}
+
+/* The moment the last lever goes on: the bars vanish in a flash. */
+.tile.tile-goal.goal-unlocked {
+  animation: goal-open 0.6s ease-out 1;
+}
+
+@keyframes goal-open {
+  0% { filter: brightness(2.6) saturate(1.5); box-shadow: inset 0 0 18px #fff6d8; }
+  100% { filter: brightness(1); box-shadow: none; }
+}
 
 /* A shaking icicle wobbles until it falls. */
 .tile.icicle-shaking {
@@ -1779,4 +1951,804 @@ body[data-theme="grass"] {
 #account-icon-grid .account-icon-choice:focus-visible {
   outline: 3px solid #4aa3ff;
   outline-offset: 2px;
+}
+
+/* --- Touch controls ------------------------------------------------------------ */
+
+/* While a room is being played, swipes on the grid (and presses on the
+   D-pad) are moves, never page scrolls or zooms. */
+body.playing #grid,
+#dpad {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body.playing {
+  overscroll-behavior: none;
+}
+
+/* The on-screen arrow pad: only on touch screens (no hover, coarse
+   pointer), and only while playing (startSolverMode un-hides it). A plus
+   shape — up on top, left/right in the middle, down below. */
+#dpad {
+  display: none;
+}
+
+/* Empty feedback lines still take their margins; while playing, drop them
+   so the room and the pad fit on one phone screen. */
+body.playing #validate-result:empty,
+body.playing #daily-builder-result:empty {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  #dpad:not([hidden]) {
+    display: grid;
+    grid-template-columns: repeat(3, 58px);
+    grid-template-rows: repeat(3, 44px);
+    gap: 4px;
+    margin: 10px auto 0;
+  }
+
+  #dpad button {
+    min-width: 0;
+    padding: 0;
+    font-size: 1.4rem;
+  }
+
+  #dpad [data-dir="up"] { grid-area: 1 / 2; }
+  #dpad [data-dir="left"] { grid-area: 2 / 1; }
+  #dpad [data-dir="right"] { grid-area: 2 / 3; }
+  #dpad [data-dir="down"] { grid-area: 3 / 2; }
+
+  /* Leave room under the grid for the pad: the grid gets whatever height
+     the header, stats, pad and hint line don't need (never below 200px). */
+  body.playing #grid {
+    width: max(200px, min(94vw, calc(100dvh - 482px), 560px));
+  }
+
+  body.playing #solver-stats {
+    margin: 8px 0;
+  }
+
+  body.playing #solver-message {
+    margin: 8px 0;
+  }
+}
+
+/* --- Story cutscenes (story.js) ------------------------------------------ */
+
+/* Over everything, the account and mute buttons included: a cutscene takes
+   the whole screen until it ends or is skipped. */
+#cutscene {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 72px 16px 16px;
+  background: #050408;
+  --cs-accent: #ffb347;
+}
+
+#cutscene[hidden] {
+  display: none;
+}
+
+#cutscene[data-theme="ice"] { --cs-accent: #7fdcff; }
+#cutscene[data-theme="grass"] { --cs-accent: #9fd35a; }
+#cutscene[data-theme="castle"] { --cs-accent: #c9b8ff; }
+
+.cs-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* The stage is 2:1; leave the caption room below it. */
+  width: min(100%, 760px, calc((100dvh - 230px) * 2));
+}
+
+.cs-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
+  border: 4px solid #000;
+  border-radius: 4px;
+  box-shadow: 0 0 40px 6px color-mix(in srgb, var(--cs-accent) 18%, transparent);
+  cursor: pointer;
+}
+
+.cs-stage.cs-shaking {
+  animation: cs-shake 0.12s linear infinite;
+}
+
+@keyframes cs-shake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1.5%, 1%); }
+  75% { transform: translate(1.5%, -1%); }
+}
+
+.cs-tiles {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cs-cols), 1fr);
+  grid-template-rows: repeat(var(--cs-rows), 1fr);
+}
+
+.cs-tile {
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+
+.cs-entities {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cs-entity {
+  position: absolute;
+  width: calc(100% / var(--cs-cols));
+  height: calc(100% / var(--cs-rows));
+  transition: opacity 0.4s;
+  z-index: 1;
+}
+
+.cs-actor {
+  z-index: 2;
+}
+
+.cs-actor.facing-left {
+  transform: scaleX(-1);
+}
+
+/* Same inset and stretch as the in-game .player-sprite, so the characters
+   look exactly as they do in the rooms. */
+.cs-sprite {
+  position: absolute;
+  inset: 4%;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+
+.cs-prop .cs-sprite {
+  inset: 0;
+  background-size: contain;
+  background-position: center;
+}
+
+.cs-torch .cs-sprite {
+  animation: cs-torch-flicker 1.3s ease-in-out infinite;
+}
+
+@keyframes cs-torch-flicker {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 4px rgba(255, 160, 60, 0.7)); }
+  50% { filter: brightness(1.25) drop-shadow(0 0 9px rgba(255, 160, 60, 0.9)); }
+}
+
+.cs-glow .cs-sprite {
+  animation: cs-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes cs-glow {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 2px rgba(255, 240, 200, 0.4)); }
+  50% { filter: brightness(1.3) drop-shadow(0 0 8px rgba(255, 240, 200, 0.9)); }
+}
+
+.cs-sprite.pose-idle {
+  animation: player-idle-bob 1.4s ease-in-out infinite;
+}
+
+.cs-sprite.pose-walking {
+  animation: cs-walk-bounce 0.3s ease-in-out infinite;
+}
+
+.cs-sprite.pose-win,
+.cs-sprite.pose-wave {
+  animation: cs-win-bounce 0.6s ease-in-out infinite;
+}
+
+.cs-sprite.pose-hit {
+  animation: cs-hit 0.45s ease-out 1;
+}
+
+.cs-sprite.pose-float {
+  animation: cs-float 2.4s ease-in-out infinite;
+}
+
+@keyframes cs-walk-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8%); }
+}
+
+@keyframes cs-win-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12%); }
+}
+
+@keyframes cs-hit {
+  0% { transform: translate(0, 0); filter: brightness(1.8); }
+  30% { transform: translate(-6%, 0); }
+  60% { transform: translate(6%, 0); }
+  100% { transform: translate(0, 0); filter: none; }
+}
+
+@keyframes cs-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10%); }
+}
+
+/* The figure in the dark, and the master's ghost: a cold glow. */
+.cs-shadow .cs-sprite {
+  filter: drop-shadow(0 0 5px rgba(150, 120, 255, 0.7));
+}
+
+.cs-ghost .cs-sprite,
+.cs-master .cs-sprite {
+  filter: drop-shadow(0 0 7px rgba(200, 210, 255, 0.85));
+}
+
+.cs-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cs-flash.cs-flashing {
+  animation: cs-flash 0.9s ease-out 1;
+}
+
+@keyframes cs-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.cs-curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #000;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.cs-chapter {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+
+.cs-chapter[hidden] {
+  display: none;
+}
+
+.cs-chapter.open {
+  opacity: 1;
+}
+
+/* The page heading's pixel-outlined wordmark, in the scene's color. */
+.cs-chapter h2 {
+  margin: 0;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-size: clamp(1.1rem, 4.5vw, 2rem);
+  color: var(--cs-accent);
+  text-shadow:
+    -2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000,
+    0 4px 0 #000, 0 0 14px color-mix(in srgb, var(--cs-accent) 40%, transparent);
+}
+
+.cs-chapter p {
+  margin: 0;
+  color: #b8b2c8;
+  font-style: italic;
+}
+
+.cs-chapter p[hidden] {
+  display: none;
+}
+
+.cs-caption {
+  position: relative;
+  min-height: 6.2em;
+  padding: 12px 36px 12px 16px;
+  background: rgba(18, 16, 24, 0.94);
+  border: 2px solid #000;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cs-accent) 30%, transparent);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  cursor: pointer;
+}
+
+.cs-caption.open {
+  opacity: 1;
+}
+
+.cs-who {
+  display: block;
+  margin-bottom: 4px;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--cs-accent);
+}
+
+.cs-who[hidden] {
+  display: none;
+}
+
+.cs-text {
+  margin: 0;
+  line-height: 1.5;
+  font-size: clamp(0.9rem, 2.4vw, 1.05rem);
+  color: #eee;
+}
+
+.cs-caption.narration .cs-text {
+  font-style: italic;
+  color: #cfc8e0;
+}
+
+.cs-more {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  font-size: 0.8rem;
+  color: var(--cs-accent);
+  animation: cs-blink 1s steps(2, start) infinite;
+}
+
+.cs-more[hidden] {
+  display: none;
+}
+
+@keyframes cs-blink {
+  to { visibility: hidden; }
+}
+
+/* A page of the master's journal, held up over the scene. */
+.cs-note {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  width: min(calc(100vw - 32px), 440px);
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
+  padding: 20px 24px 28px;
+  background: #e8d8a8;
+  color: #3a2a1a;
+  border: 3px solid #8a7048;
+  border-radius: 3px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), inset 0 0 30px rgba(138, 112, 72, 0.35);
+  opacity: 0;
+  transform: translate(-50%, -46%) rotate(-1.5deg);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  cursor: pointer;
+}
+
+.cs-note[hidden] {
+  display: none;
+}
+
+.cs-note.open {
+  opacity: 1;
+  transform: translate(-50%, -50%) rotate(-1.5deg);
+}
+
+.cs-note-text {
+  margin: 0;
+  white-space: pre-line;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  line-height: 1.5;
+  font-size: clamp(0.9rem, 2.6vw, 1.05rem);
+}
+
+.cs-note .cs-more {
+  color: #8a7048;
+}
+
+.cs-skip {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 4;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-sprite.pose-idle,
+  .cs-sprite.pose-walking,
+  .cs-sprite.pose-win,
+  .cs-sprite.pose-wave,
+  .cs-sprite.pose-float,
+  .cs-glow .cs-sprite,
+  .cs-torch .cs-sprite,
+  .cs-more {
+    animation: none;
+  }
+}
+
+/* --- Story list (world select → Story) ------------------------------------ */
+
+#story-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#story-list .pixel-btn {
+  width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
+#story-list .pixel-btn:disabled {
+  filter: grayscale(1) brightness(0.6);
+  cursor: not-allowed;
+}
+
+.story-hint {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+  text-transform: none;
+  opacity: 0.85;
+}
+
+/* --- Chapter badges (badges.js) ------------------------------------------- */
+
+/* The award: over everything but a cutscene (which it follows). */
+#badge-award {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow: hidden;
+  --badge-glow: #ff7a1f;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--badge-glow) 30%, #050408) 0%, rgba(5, 4, 8, 0.95) 60%);
+  animation: badge-fade-in 0.4s ease both;
+}
+
+#badge-award[hidden] {
+  display: none;
+}
+
+#badge-award[data-theme="ice"] { --badge-glow: #7fdcff; }
+#badge-award[data-theme="grass"] { --badge-glow: #9fd35a; }
+#badge-award[data-theme="castle"] { --badge-glow: #c9b8ff; }
+
+@keyframes badge-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Light rays turning slowly behind the medal. */
+.badge-rays {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 160vmax;
+  height: 160vmax;
+  transform: translate(-50%, -50%);
+  background: repeating-conic-gradient(color-mix(in srgb, var(--badge-glow) 24%, transparent) 0deg 9deg, transparent 9deg 30deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 32%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 32%);
+  animation: badge-rays-spin 20s linear infinite, badge-fade-in 1.2s ease both;
+  pointer-events: none;
+}
+
+@keyframes badge-rays-spin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* The world's weather: each particle's place, timing and drift come from
+   custom properties set in showBadgeAward. */
+.badge-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.badge-p {
+  position: absolute;
+  left: var(--x);
+  width: var(--size);
+  height: var(--size);
+  opacity: 0;
+  animation-duration: var(--dur);
+  animation-delay: var(--delay);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* Lava: embers rising. */
+#badge-award[data-theme="lava"] .badge-p {
+  top: 100%;
+  background: #ffb347;
+  box-shadow: 0 0 6px #ff7a1f;
+  animation-name: badge-ember;
+}
+
+#badge-award[data-theme="lava"] .badge-p:nth-child(3n) {
+  background: #ff5c2c;
+}
+
+@keyframes badge-ember {
+  0% { opacity: 0; transform: translate(0, 0); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--drift), -105vh); }
+}
+
+/* Ice: snow falling, swaying. */
+#badge-award[data-theme="ice"] .badge-p {
+  top: -12px;
+  background: #eef6ff;
+  box-shadow: 0 0 4px #7fdcff;
+  animation-name: badge-snow;
+}
+
+@keyframes badge-snow {
+  0% { opacity: 0; transform: translate(0, 0); }
+  10% { opacity: 0.9; }
+  50% { transform: translate(var(--drift), 52vh); }
+  90% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(0, 105vh); }
+}
+
+/* Grass: leaves drifting down, tumbling. */
+#badge-award[data-theme="grass"] .badge-p {
+  top: -12px;
+  width: calc(var(--size) + 4px);
+  background: #6fbf3a;
+  border-radius: 0 70% 0 70%;
+  animation-name: badge-leaf;
+}
+
+#badge-award[data-theme="grass"] .badge-p:nth-child(2n) {
+  background: #c8f07a;
+}
+
+@keyframes badge-leaf {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+  10% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--drift) * 2), 105vh) rotate(540deg); }
+}
+
+/* Castle: sparkles twinkling all around. */
+#badge-award[data-theme="castle"] .badge-p {
+  top: var(--y);
+  background: #fff0a0;
+  box-shadow: 0 0 8px #c9b8ff;
+  animation-name: badge-twinkle;
+}
+
+#badge-award[data-theme="castle"] .badge-p:nth-child(2n) {
+  background: #c9b8ff;
+}
+
+@keyframes badge-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.4) rotate(45deg); }
+}
+
+.badge-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 380px;
+  text-align: center;
+}
+
+.badge-kicker {
+  margin: 0 0 6px;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--badge-glow);
+  text-shadow: 0 2px 0 #000;
+  animation: badge-rise 0.5s ease 0.1s both;
+}
+
+/* The medal drops in spinning like a coin, bounces, then hovers. */
+.badge-medal {
+  position: relative;
+  width: min(48vw, 190px);
+  aspect-ratio: 24 / 28;
+  perspective: 600px;
+  animation:
+    badge-drop 1s cubic-bezier(0.2, 1.3, 0.4, 1) both,
+    badge-hover 3.2s ease-in-out 1.2s infinite;
+}
+
+.badge-medal-img {
+  position: absolute;
+  inset: 0;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 16px var(--badge-glow));
+  animation: badge-spin 1s ease-out both;
+}
+
+.badge-medal-shine {
+  position: absolute;
+  inset: 0;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.6) 50%, transparent 60%) no-repeat;
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  animation: badge-shine 2.8s ease-in-out 1.1s infinite;
+  pointer-events: none;
+}
+
+@keyframes badge-drop {
+  0% { opacity: 0; transform: translateY(-55vh) scale(0.4); }
+  60% { opacity: 1; transform: translateY(0) scale(1.15); }
+  80% { transform: scale(0.95); }
+  100% { transform: none; }
+}
+
+@keyframes badge-spin {
+  from { transform: rotateY(-720deg); }
+  to { transform: rotateY(0deg); }
+}
+
+@keyframes badge-hover {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes badge-shine {
+  0% { background-position: 150% 0; }
+  45%, 100% { background-position: -50% 0; }
+}
+
+.badge-name {
+  margin: 8px 0 0;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-size: clamp(1.3rem, 5.5vw, 1.9rem);
+  color: #fff6d8;
+  text-shadow:
+    -2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000,
+    0 4px 0 #000, 0 0 16px color-mix(in srgb, var(--badge-glow) 60%, transparent);
+  animation: badge-rise 0.5s ease 0.8s both;
+}
+
+.badge-desc {
+  margin: 0;
+  color: #e6e0f0;
+  animation: badge-rise 0.5s ease 0.95s both;
+}
+
+.badge-where {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #b8b2c8;
+  animation: badge-rise 0.5s ease 1.1s both;
+}
+
+.badge-ok {
+  margin-top: 12px;
+  animation: badge-rise 0.5s ease 1.2s both;
+}
+
+@keyframes badge-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-rays,
+  .badge-p,
+  .badge-medal-shine {
+    animation: none;
+  }
+
+  .badge-p {
+    display: none;
+  }
+
+  .badge-medal,
+  .badge-medal-img {
+    animation: badge-fade-in 0.4s ease both;
+  }
+}
+
+/* The badge list (account panel). Two-class selectors so they outrank the
+   bare `button:not(.tile)` reset. */
+.badge-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.badge-list .badge-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid #000;
+  border-radius: 8px;
+  color: #eee;
+}
+
+.badge-list .badge-slot:disabled {
+  cursor: default;
+}
+
+.badge-slot-img {
+  width: 44px;
+  height: 52px;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  transition: transform 0.15s ease;
+}
+
+.badge-slot:not(.earned) .badge-slot-img {
+  filter: grayscale(1) brightness(0.25);
+}
+
+.badge-slot.earned:hover .badge-slot-img,
+.badge-slot.earned:focus-visible .badge-slot-img {
+  transform: translateY(-2px) scale(1.08);
+}
+
+.badge-slot-name {
+  font-size: 0.68rem;
+  font-weight: bold;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.badge-slot:not(.earned) .badge-slot-name {
+  color: #777;
+}
+
+.badge-list-note {
+  margin: -8px 0 12px;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+#account-guest-badges-wrap[hidden] {
+  display: none;
 }

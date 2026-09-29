@@ -8,12 +8,18 @@
 // picks how it's drawn and what shared traps are called. A level with no
 // `theme` (every shared link made before themes existed) is lava.
 
-const THEMES = ['lava', 'ice', 'grass'];
+// The castle is the bonus world: it comes last, and opens only once every
+// level of the other three is beaten (see isThemeUnlocked in levels.js).
+const THEMES = ['lava', 'ice', 'grass', 'castle'];
+const BONUS_THEMES = ['castle'];
+// The worlds of the regular chain (each unlocks the next).
+const MAIN_THEMES = THEMES.filter((t) => !BONUS_THEMES.includes(t));
 
 const THEME_INFO = {
   lava: { name: 'Volcanic Depths', short: 'Lava' },
   ice: { name: 'Frozen Caverns', short: 'Ice' },
   grass: { name: 'Overgrown Ruins', short: 'Grass' },
+  castle: { name: 'Abandoned Castle', short: 'Castle' },
 };
 
 function normalizeTheme(theme) {
@@ -30,15 +36,19 @@ function levelTheme(level) {
 const THEME_TRAPS = {
   lava: [
     'spike', 'timedspike', 'hiddenspike', 'oneway-up', 'oneway-right', 'oneway-down', 'oneway-left',
-    'portal-a', 'portal-b', 'ice', 'current-right', 'turret-right', 'vent-right', 'imp-h', 'bomb',
+    'portal-a', 'portal-b', 'ice', 'current-right', 'turret-right', 'vent-right', 'imp-h', 'bomb', 'lever',
   ],
   ice: [
     'spike', 'timedspike', 'hiddenspike', 'oneway-up', 'oneway-right', 'oneway-down', 'oneway-left',
-    'portal-a', 'portal-b', 'ice', 'turret-right', 'thinice', 'frost', 'icicle',
+    'portal-a', 'portal-b', 'ice', 'turret-right', 'thinice', 'frost', 'icicle', 'lever',
   ],
   grass: [
     'spike', 'timedspike', 'hiddenspike', 'oneway-up', 'oneway-right', 'oneway-down', 'oneway-left',
-    'portal-a', 'portal-b', 'current-right', 'vines', 'mushroom', 'snapjaw', 'boar-h',
+    'portal-a', 'portal-b', 'current-right', 'vines', 'mushroom', 'snapjaw', 'boar-h', 'lever',
+  ],
+  castle: [
+    'spike', 'timedspike', 'hiddenspike', 'oneway-up', 'oneway-right', 'oneway-down', 'oneway-left',
+    'portal-a', 'portal-b', 'turret-right', 'bomb', 'thinice', 'lever', 'crusher', 'plate', 'gate', 'ghost',
   ],
 };
 
@@ -60,39 +70,46 @@ const PALETTE_GROUPS = [
   { title: 'Basics', types: PALETTE_BASICS },
   {
     title: 'Every theme',
-    types: ['spike', 'timedspike', 'hiddenspike', 'oneway-up', 'oneway-right', 'oneway-down', 'oneway-left', 'portal-a', 'portal-b'],
+    types: ['spike', 'timedspike', 'hiddenspike', 'oneway-up', 'oneway-right', 'oneway-down', 'oneway-left', 'portal-a', 'portal-b', 'lever'],
   },
   { title: 'Lava', types: ['bomb', 'turret-right', 'vent-right', 'imp-h', 'ice', 'current-right'] },
   { title: 'Ice', types: ['thinice', 'frost', 'icicle'] },
   { title: 'Grass', types: ['vines', 'mushroom', 'snapjaw', 'boar-h'] },
+  { title: 'Castle', types: ['crusher', 'plate', 'gate', 'ghost'] },
 ];
 const BUILDER_PALETTE_TYPES = PALETTE_GROUPS.flatMap((group) => group.types);
 
 // A trap's display name. Shared traps are named per theme (a spike is an
-// "Icicle Spike" in an ice room); everything else has one name.
+// "Icicle Spike" in an ice room); everything else has one name. A theme
+// missing from a per-theme entry uses the lava name.
 const TRAP_NAMES = {
   wall: 'Wall',
   start: 'Start',
   goal: 'Goal',
-  spike: { lava: 'Spike', ice: 'Icicle Spike', grass: 'Thorn Spike' },
-  timedspike: { lava: 'Timed Spike', ice: 'Frost Spike', grass: 'Snapping Thorns' },
-  hiddenspike: { lava: 'Hidden Spike', ice: 'Buried Spike', grass: 'Covered Pit' },
-  oneway: { lava: 'One-Way', ice: 'Frosted One-Way', grass: 'Vine One-Way' },
-  'portal-a': { lava: 'Portal (Orange)', ice: 'Aurora Portal (Cyan)', grass: 'Fairy Ring (Gold)' },
-  'portal-b': { lava: 'Portal (Violet)', ice: 'Aurora Portal (Pink)', grass: 'Fairy Ring (Blue)' },
+  spike: { lava: 'Spike', ice: 'Icicle Spike', grass: 'Thorn Spike', castle: 'Iron Spikes' },
+  timedspike: { lava: 'Timed Spike', ice: 'Frost Spike', grass: 'Snapping Thorns', castle: 'Spiked Floor' },
+  hiddenspike: { lava: 'Hidden Spike', ice: 'Buried Spike', grass: 'Covered Pit', castle: 'Trapdoor' },
+  oneway: { lava: 'One-Way', ice: 'Frosted One-Way', grass: 'Vine One-Way', castle: 'Carved Arrow' },
+  'portal-a': { lava: 'Portal (Orange)', ice: 'Aurora Portal (Cyan)', grass: 'Fairy Ring (Gold)', castle: 'Magic Mirror (Silver)' },
+  'portal-b': { lava: 'Portal (Violet)', ice: 'Aurora Portal (Pink)', grass: 'Fairy Ring (Blue)', castle: 'Magic Mirror (Violet)' },
   ice: { lava: 'Obsidian Ice', ice: 'Slick Ice', grass: 'Obsidian Ice' },
-  turret: { lava: 'Lava Turret', ice: 'Frost Cannon', grass: 'Lava Turret' },
+  turret: { lava: 'Lava Turret', ice: 'Frost Cannon', grass: 'Lava Turret', castle: 'Crossbow' },
   current: { lava: 'Lava Current', ice: 'Lava Current', grass: 'Stream' },
-  bomb: 'Bomb',
+  bomb: { lava: 'Bomb', castle: 'Powder Barrel' },
   vent: 'Flame Vent',
   imp: 'Fire Imp',
-  thinice: 'Thin Ice',
+  thinice: { lava: 'Thin Ice', castle: 'Rotten Floorboards' },
   frost: 'Frostbite Patch',
   icicle: 'Falling Icicle',
   vines: 'Grabbing Vines',
   mushroom: 'Mushroom Pad',
   snapjaw: 'Snapjaw',
   boar: 'Wild Boar',
+  lever: { lava: 'Lever', castle: 'Castle Lever' },
+  crusher: 'Crusher',
+  plate: 'Pressure Plate',
+  gate: 'Portcullis',
+  ghost: 'Ghost',
 };
 
 const ONEWAY_ARROWS = { up: '↑', right: '→', down: '↓', left: '←' };
@@ -100,7 +117,7 @@ const ONEWAY_ARROWS = { up: '↑', right: '→', down: '↓', left: '←' };
 function trapLabel(type, theme = 'lava') {
   const entry = TRAP_NAMES[type] || TRAP_NAMES[tileFamily(type)];
   if (!entry) return type;
-  const name = typeof entry === 'string' ? entry : entry[normalizeTheme(theme)];
+  const name = typeof entry === 'string' ? entry : entry[normalizeTheme(theme)] || entry.lava;
   return tileFamily(type) === 'oneway' ? `${name} ${ONEWAY_ARROWS[type.split('-')[1]]}` : name;
 }
 
@@ -125,6 +142,11 @@ const TRAP_DESCRIPTIONS = {
   mushroom: 'Bounces you 2 tiles on, hopping over whatever is between — but not over walls.',
   snapjaw: 'A solid plant. Every 6 beats it rustles, then bites all 4 tiles next to it.',
   boar: 'Charges back and forth along its row or column, 2 tiles per beat. Both tiles it crosses are deadly.',
+  lever: 'Step on it to flip it on — step on it again and it flips back off. The exit stays locked until every lever is on.',
+  crusher: 'A stone block on a 6-beat cycle: up for 3 beats (it shakes on the third), slams down on the 4th — deadly — then stays down, solid, for 2.',
+  plate: 'Every time you step on a plate, every portcullis in the room flips: open ones shut, shut ones open.',
+  gate: 'Iron bars, shut until a pressure plate opens them. Shots and blasts pass straight through.',
+  ghost: "Drifts one tile toward you every other beat — straight through walls. It can't enter the start or the gem. One touch and you're back at the start.",
 };
 
 function trapDescription(type) {
@@ -167,10 +189,12 @@ function rotateTileType(type) {
 // either, but holding you still is what makes everything else deadly, so
 // they cost a point. The heavier traps cost 2 since they threaten several
 // tiles at once (or, for icicles, permanently reshape the room).
+// Plates and portcullises are free, like levers: they reshape the room
+// but never hurt on their own.
 const TRAP_COSTS = {
   spike: 1, timedspike: 1, hiddenspike: 1, vent: 1,
-  thinice: 1, frost: 1, vines: 1,
-  bomb: 2, turret: 2, imp: 2, icicle: 2, snapjaw: 2, boar: 2,
+  thinice: 1, frost: 1, vines: 1, crusher: 1,
+  bomb: 2, turret: 2, imp: 2, icicle: 2, snapjaw: 2, boar: 2, ghost: 2,
 };
 
 function trapCost(type) {
@@ -186,13 +210,17 @@ function countTrapPoints(level) {
 }
 
 // Hard caps independent of the budget: portals only make sense as pairs,
-// and every bomb, icicle and thin-ice tile carries its own state that
-// multiplies the solver's search space (see solveBFS).
+// and every bomb, icicle, thin-ice tile and lever carries its own state
+// that multiplies the solver's search space (see solveBFS). Levers are
+// free (they never hurt), so the cap is all that limits them.
 const MAX_PORTALS_PER_COLOR = 2;
 const MAX_BOMBS = 4;
 const MAX_ICICLES = 4;
 const MAX_THIN_ICE = 16;
-const TYPE_CAPS = { bomb: MAX_BOMBS, icicle: MAX_ICICLES, thinice: MAX_THIN_ICE };
+const MAX_LEVERS = 4;
+// The ghost's position is part of the solver's state, so one per room.
+const MAX_GHOSTS = 1;
+const TYPE_CAPS = { bomb: MAX_BOMBS, icicle: MAX_ICICLES, thinice: MAX_THIN_ICE, lever: MAX_LEVERS, ghost: MAX_GHOSTS };
 
 // --- Level helpers (pure — no DOM access, reusable outside the browser) --
 
@@ -306,6 +334,37 @@ const MUSHROOM_HOP = 2;
 
 // Snapjaw: 6-tick cycle — idle 4, rustling warning 1, biting 1. The bite
 // covers the 4 tiles next to it.
+// Lever: flips every time the player moves onto it. The exit is locked
+// (solid, like a wall) while any lever in the room is off.
+const LEVER_OFF = 0;
+const LEVER_ON = 1;
+
+// Crusher: a CRUSHER_PERIOD-tick cycle — up for 3 ticks (walkable; it
+// shakes on the third as a warning), slams on the 4th (deadly on its tile),
+// then stays down, solid, for 2. Hazards pass it at every phase.
+const CRUSHER_PERIOD = 6;
+function crusherPhase(turn) {
+  return mod(turn, CRUSHER_PERIOD);
+}
+function isCrusherWarningAtTurn(turn) {
+  return crusherPhase(turn) === 2;
+}
+function isCrusherSlammingAtTurn(turn) {
+  return crusherPhase(turn) === 3;
+}
+function isCrusherDownAtTurn(turn) {
+  return crusherPhase(turn) >= 4;
+}
+
+// Pressure plates and portcullises: one bit for the whole room. Every
+// plate press flips every portcullis; they all start shut (solid).
+const GATES_CLOSED = 0;
+const GATES_OPEN = 1;
+
+// Ghost: every GHOST_PERIOD ticks it drifts one tile toward the player,
+// straight through walls (see ghostStep). At most one per room.
+const GHOST_PERIOD = 2;
+
 const SNAPJAW_PERIOD = 6;
 function isSnapjawBitingAtTurn(turn) {
   return mod(turn, SNAPJAW_PERIOD) === SNAPJAW_PERIOD - 1;
@@ -384,9 +443,9 @@ function setTileType(level, x, y, newType) {
 // (where the level never changes).
 //
 // The parts of a room that *do* change as you play — bombs, thin ice,
-// falling icicles — are "objects": each gets a slot in one flat array of
-// small integers (bombs first, then thin ice, then icicles), passed around
-// as `states`. Being a plain array of single digits is what lets solveBFS
+// falling icicles, levers — are "objects": each gets a slot in one flat
+// array of small integers (bombs first, then thin ice, then icicles, then
+// levers), passed around as `states`. Being a plain array of single digits is what lets solveBFS
 // fold it into its visited-state key.
 
 function gcd(a, b) {
@@ -402,26 +461,35 @@ function buildHazardContext(level) {
   const inBounds = (x, y) => x >= 0 && x < size && y >= 0 && y < size;
   const hazardPassable = (x, y) => inBounds(x, y) && !blocksHazards(tiles[y * size + x]);
   // Patrol routes are fixed up front, so imps and boars never walk under a
-  // hanging icicle (they couldn't react to it falling).
-  const patrolPassable = (x, y) => hazardPassable(x, y) && tiles[y * size + x] !== 'icicle';
+  // hanging icicle, a crusher or a portcullis (they couldn't react to one
+  // falling, slamming or shutting).
+  const patrolPassable = (x, y) => hazardPassable(x, y) && !['icicle', 'crusher', 'gate'].includes(tiles[y * size + x]);
 
   // Pass 1: object slots, so line-of-fire precomputation below can refer to
   // the icicles along the way.
   const bombs = [];
   const thinIce = [];
   const icicles = [];
+  const levers = [];
   tiles.forEach((type, i) => {
     if (type === 'bomb') bombs.push({ idx: i });
     else if (type === 'thinice') thinIce.push({ idx: i });
     else if (type === 'icicle') icicles.push({ idx: i });
+    else if (type === 'lever') levers.push({ idx: i });
   });
   const slotAt = new Map();
   const bombIndexAt = new Map();
-  [...bombs, ...thinIce, ...icicles].forEach((obj, slot) => {
+  [...bombs, ...thinIce, ...icicles, ...levers].forEach((obj, slot) => {
     obj.slot = slot;
     slotAt.set(obj.idx, slot);
   });
   bombs.forEach((bomb) => bombIndexAt.set(bomb.idx, bomb.slot));
+  // Two more slots after the per-tile objects: the room's portcullis bit
+  // (if it has plates or portcullises) and the ghost's tile (if it has one).
+  let objectCount = bombs.length + thinIce.length + icicles.length + levers.length;
+  const gateSlot = tiles.some((t) => t === 'plate' || t === 'gate') ? objectCount++ : -1;
+  const ghostSpawn = tiles.indexOf('ghost');
+  const ghost = ghostSpawn >= 0 ? { slot: objectCount++, spawn: ghostSpawn } : null;
 
   // A fallen icicle stops fire and fireballs, so every cell on a line of
   // fire remembers which icicle slots sit between it and its source.
@@ -449,7 +517,10 @@ function buildHazardContext(level) {
   };
 
   const flameCells = new Map(); // tile idx -> [blocker slot lists, one per vent reaching it]
-  const fireballDistances = new Map(); // tile idx -> [{ d, blockers }, one per turret reaching it]
+  // tile idx -> [{ d, blockers, from }, one per turret reaching it]; `from`
+  // is the tile the shot was on the tick before (the turret itself at d=1),
+  // for animating it.
+  const fireballDistances = new Map();
   const imps = [];
   const boars = [];
   const biteCells = new Set();
@@ -479,7 +550,7 @@ function buildHazardContext(level) {
       const [dx, dy] = tileDirection(type);
       walkLine(x, y, dx, dy, Infinity, (idx, d, blockers) => {
         if (!fireballDistances.has(idx)) fireballDistances.set(idx, []);
-        fireballDistances.get(idx).push({ d, blockers });
+        fireballDistances.get(idx).push({ d, blockers, from: idx - (dy * size + dx) });
       });
     }
 
@@ -524,11 +595,13 @@ function buildHazardContext(level) {
   if (flameCells.size) periods.push(VENT_PERIOD);
   if (fireballDistances.size) periods.push(TURRET_PERIOD);
   if (hasSnapjaw) periods.push(SNAPJAW_PERIOD);
+  if (tiles.includes('crusher')) periods.push(CRUSHER_PERIOD);
+  if (ghost) periods.push(GHOST_PERIOD);
 
   return {
     size, tiles, flameCells, fireballDistances, imps, boars, biteCells,
-    bombs, thinIce, icicles, slotAt, bombIndexAt, portalPartner,
-    objectCount: bombs.length + thinIce.length + icicles.length,
+    bombs, thinIce, icicles, levers, slotAt, bombIndexAt, portalPartner,
+    gateSlot, ghost, objectCount,
     hasVines: tiles.includes('vines'),
     // Every timed hazard repeats after this many ticks, so solveBFS can fold
     // tick numbers modulo it without losing information.
@@ -573,10 +646,35 @@ function isFireballAt(ctx, idx, tick, states) {
   return !!shots && shots.some(({ d, blockers }) => mod(tick - d, TURRET_PERIOD) === 0 && !lineBlocked(blockers, states));
 }
 
-// Every object starts in state 0: bombs armed, thin ice intact, icicles
-// hanging.
+// Every object starts in state 0 — bombs armed, thin ice intact, icicles
+// hanging, levers off, portcullises shut — except the ghost, which starts
+// on its spawn tile.
 function initialObjectStates(ctx) {
-  return new Array(ctx.objectCount).fill(0);
+  const states = new Array(ctx.objectCount).fill(0);
+  if (ctx.ghost) states[ctx.ghost.slot] = ctx.ghost.spawn;
+  return states;
+}
+
+// Where the ghost goes next, from tile `from` toward tile `target`: one
+// step along whichever axis is farther off (horizontal on a tie), or along
+// the other if that step would enter the start or the goal — the safe
+// zones it never enters. Walls don't stop it. Stays put if both are
+// barred, or if it's already there.
+function ghostStep(ctx, from, target) {
+  const { size, tiles } = ctx;
+  const fx = from % size;
+  const fy = Math.floor(from / size);
+  const ox = (target % size) - fx;
+  const oy = Math.floor(target / size) - fy;
+  const steps = Math.abs(ox) >= Math.abs(oy)
+    ? [[Math.sign(ox), 0], [0, Math.sign(oy)]]
+    : [[0, Math.sign(oy)], [Math.sign(ox), 0]];
+  for (const [dx, dy] of steps) {
+    if (!dx && !dy) continue;
+    const idx = (fy + dy) * size + (fx + dx);
+    if (tiles[idx] !== 'start' && tiles[idx] !== 'goal') return idx;
+  }
+  return from;
 }
 
 function objectState(ctx, idx, states) {
@@ -592,12 +690,13 @@ function blastCellsFor(ctx, states) {
   return cells;
 }
 
-// Advances every object by one tick (returns a new array): burning fuses
-// tick down and explode at zero, last tick's explosions burn out, any bomb
-// caught in a new blast is set to go off next tick, and shaking icicles
-// count down, crash, and settle. Thin ice only changes when the player
-// moves (see applyMoveToObjects).
-function advanceObjects(ctx, states) {
+// Advances every object into tick `tick` (returns a new array): burning
+// fuses tick down and explode at zero, last tick's explosions burn out, any
+// bomb caught in a new blast is set to go off next tick, shaking icicles
+// count down, crash, and settle, and — on every GHOST_PERIOD-th tick — the
+// ghost drifts toward the player on tile `playerIdx`. Thin ice, levers and
+// portcullises only change when the player moves (see applyMoveToObjects).
+function advanceObjects(ctx, states, playerIdx, tick) {
   const next = states.slice();
   ctx.bombs.forEach(({ slot }) => {
     const s = states[slot];
@@ -617,19 +716,44 @@ function advanceObjects(ctx, states) {
     if (s === ICICLE_CRASHING) next[slot] = ICICLE_FALLEN;
     else if (s >= 1 && s <= ICICLE_DROP_TICKS) next[slot] = s === 1 ? ICICLE_CRASHING : s - 1;
   });
+  if (ctx.ghost && playerIdx !== undefined && mod(tick, GHOST_PERIOD) === 0) {
+    next[ctx.ghost.slot] = ghostStep(ctx, states[ctx.ghost.slot], playerIdx);
+  }
   return next;
 }
 
 // What a move (see resolveMove) does to the room's objects: bombs it
-// stepped on start their fuses, icicles it passed under start shaking, and
-// thin ice it left behind breaks. Returns a new array.
+// stepped on start their fuses, icicles it passed under start shaking, thin
+// ice it left behind breaks, every lever it entered flips (twice if it
+// entered one twice), and every plate it pressed flips the portcullises.
+// Returns a new array.
 function applyMoveToObjects(states, move) {
-  if (!move.litBombs.length && !move.litIcicles.length && !move.brokenIce.length) return states;
+  const { litBombs, litIcicles, brokenIce, flippedLevers, pressedPlates } = move;
+  if (!litBombs.length && !litIcicles.length && !brokenIce.length && !flippedLevers.length && !pressedPlates.length) {
+    return states;
+  }
   const next = states.slice();
-  move.litBombs.forEach((slot) => { next[slot] = BOMB_FUSE_TICKS; });
-  move.litIcicles.forEach((slot) => { next[slot] = ICICLE_DROP_TICKS; });
-  move.brokenIce.forEach((slot) => { next[slot] = THIN_ICE_BROKEN; });
+  litBombs.forEach((slot) => { next[slot] = BOMB_FUSE_TICKS; });
+  litIcicles.forEach((slot) => { next[slot] = ICICLE_DROP_TICKS; });
+  brokenIce.forEach((slot) => { next[slot] = THIN_ICE_BROKEN; });
+  flippedLevers.forEach((slot) => { next[slot] = next[slot] === LEVER_ON ? LEVER_OFF : LEVER_ON; });
+  pressedPlates.forEach((slot) => { next[slot] = next[slot] === GATES_OPEN ? GATES_CLOSED : GATES_OPEN; });
   return next;
+}
+
+// Whether the room's portcullises are open right now.
+function gatesOpen(ctx, states) {
+  return ctx.gateSlot >= 0 && !!states && states[ctx.gateSlot] === GATES_OPEN;
+}
+
+// Whether the exit is locked: the room has levers and at least one is off.
+function isExitLocked(ctx, states) {
+  return ctx.levers.length > 0 && ctx.levers.some(({ slot }) => states[slot] !== LEVER_ON);
+}
+
+// How many of the room's levers are on.
+function leversOn(ctx, states) {
+  return ctx.levers.filter(({ slot }) => states[slot] === LEVER_ON).length;
 }
 
 // What (if anything) kills a player on tile idx during the given tick, as a
@@ -646,6 +770,8 @@ function hazardAt(ctx, idx, tick, states) {
   if (type === 'timedspike' && isTimedSpikeActiveAtTurn(tick)) return 'timed spike';
   if (type === 'thinice' && objectState(ctx, idx, states) === THIN_ICE_BROKEN) return 'thin ice';
   if (type === 'icicle' && objectState(ctx, idx, states) === ICICLE_CRASHING) return 'falling icicle';
+  if (type === 'crusher' && isCrusherSlammingAtTurn(tick)) return 'crusher';
+  if (ctx.ghost && states && states[ctx.ghost.slot] === idx) return 'ghost';
   if (isFlameAt(ctx, idx, tick, states)) return 'flame vent';
   if (isFireballAt(ctx, idx, tick, states)) return 'fireball';
   if (ctx.imps.some((imp) => impPositionAt(imp, tick) === idx)) return 'fire imp';
@@ -658,18 +784,25 @@ function hazardAt(ctx, idx, tick, states) {
 }
 
 // Solid right now: walls, turrets and snapjaws always; an icicle once it
-// has fallen.
-function isSolidAt(ctx, idx, states) {
+// has fallen; the exit while it's locked; a portcullis while shut; a
+// crusher while it's down (only known given the tick — without one, a
+// crusher counts as up).
+function isSolidAt(ctx, idx, states, tick) {
   const type = ctx.tiles[idx];
-  return isSolidTile(type) || (type === 'icicle' && objectState(ctx, idx, states) === ICICLE_FALLEN);
+  return isSolidTile(type)
+    || (type === 'icicle' && objectState(ctx, idx, states) === ICICLE_FALLEN)
+    || (type === 'goal' && isExitLocked(ctx, states))
+    || (type === 'gate' && !gatesOpen(ctx, states))
+    || (type === 'crusher' && tick !== undefined && isCrusherDownAtTurn(tick));
 }
 
-// Whether a single step in direction (dx, dy) may land on (x, y) at all,
-// ignoring danger: bounds, solid tiles, and one-way direction.
-function canStepOnto(ctx, x, y, dx, dy, states) {
+// Whether a single step in direction (dx, dy) may land on (x, y) at all
+// during `tick`, ignoring danger: bounds, solid tiles, and one-way
+// direction.
+function canStepOnto(ctx, x, y, dx, dy, states, tick) {
   if (x < 0 || x >= ctx.size || y < 0 || y >= ctx.size) return false;
   const idx = y * ctx.size + x;
-  return !isSolidAt(ctx, idx, states) && isOnewayPassable(ctx.tiles[idx], dx, dy);
+  return !isSolidAt(ctx, idx, states, tick) && isOnewayPassable(ctx.tiles[idx], dx, dy);
 }
 
 // Which way a player on the ice tile (x, y), sliding in direction
@@ -677,10 +810,10 @@ function canStepOnto(ctx, x, y, dx, dy, states) {
 // glance off whatever's in the way onto the next tile to the side — down
 // then up when sliding horizontally, right then left when sliding
 // vertically. null if all three are blocked (the slide stops here).
-function iceSlideDirection(ctx, x, y, dx, dy, states) {
+function iceSlideDirection(ctx, x, y, dx, dy, states, tick) {
   const sideways = dy === 0 ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]];
   const options = [[dx, dy], ...sideways];
-  return options.find(([ox, oy]) => canStepOnto(ctx, x + ox, y + oy, ox, oy, states)) || null;
+  return options.find(([ox, oy]) => canStepOnto(ctx, x + ox, y + oy, ox, oy, states, tick)) || null;
 }
 
 // Plays out one player move starting at (x, y) during the given tick,
@@ -691,23 +824,33 @@ function iceSlideDirection(ctx, x, y, dx, dy, states) {
 // partner, vines grab you and stop you dead. Every tile passed through is
 // checked for danger at this same tick.
 //
+// Every lever entered flips on the spot, so a move that flips the last
+// lever can carry on straight through the exit it just unlocked.
+//
 // Returns null if the very first step is blocked (a no-op, not a move).
 // Otherwise { path, final, death, won, grabbed, litBombs, litIcicles,
-// brokenIce, hops, teleported }: path is every tile index entered in order,
-// final is where the player ends up, death is { label, idx } if something
-// killed them on the way, grabbed is true if vines caught them. litBombs/
-// litIcicles/brokenIce list the object slots this move affects (see
-// applyMoveToObjects), and hops lists the positions in path reached by a
-// mushroom bounce rather than a step (for animation).
+// brokenIce, flippedLevers, hops, teleported }: path is every tile index
+// entered in order, final is where the player ends up, death is { label,
+// idx } if something killed them on the way, grabbed is true if vines
+// caught them. litBombs/litIcicles/brokenIce/flippedLevers list the object
+// slots this move affects (see applyMoveToObjects), and hops lists the
+// positions in path reached by a mushroom bounce rather than a step (for
+// animation).
 function resolveMove(ctx, x, y, dx, dy, tick, states) {
-  if (!canStepOnto(ctx, x + dx, y + dy, dx, dy, states)) return null;
+  if (!canStepOnto(ctx, x + dx, y + dy, dx, dy, states, tick)) return null;
 
   const { size, tiles } = ctx;
   const path = [];
   const litBombs = [];
   const litIcicles = [];
   const brokenIce = [];
+  const flippedLevers = [];
+  const pressedPlates = [];
   const hops = [];
+  // The room as the move sees it so far: `states` plus any levers flipped
+  // or plates pressed along the way (the only changes that matter mid-move
+  // — they can unlock or relock the exit, and open or shut portcullises).
+  let live = states;
   const seen = new Set();
   let teleported = false;
   // Leaving a thin-ice tile breaks it — including the one you start on and
@@ -722,7 +865,7 @@ function resolveMove(ctx, x, y, dx, dy, tick, states) {
   let [cx, cy, mdx, mdy] = [x + dx, y + dy, dx, dy];
   const result = (idx, extra) => ({
     path, final: idx, death: null, won: false, grabbed: false,
-    litBombs, litIcicles, brokenIce, hops, teleported, ...extra,
+    litBombs, litIcicles, brokenIce, flippedLevers, pressedPlates, hops, teleported, ...extra,
   });
 
   for (;;) {
@@ -730,7 +873,7 @@ function resolveMove(ctx, x, y, dx, dy, tick, states) {
     path.push(i);
     const type = tiles[i];
     const brokeThisMove = type === 'thinice' && brokenIce.includes(ctx.slotAt.get(i));
-    const label = hazardAt(ctx, i, tick, states) || (brokeThisMove ? 'thin ice' : null);
+    const label = hazardAt(ctx, i, tick, live) || (brokeThisMove ? 'thin ice' : null);
     if (label) return result(i, { death: { label, idx: i } });
 
     if (type === 'goal') return result(i, { won: true });
@@ -742,6 +885,17 @@ function resolveMove(ctx, x, y, dx, dy, tick, states) {
     if (type === 'icicle') {
       const slot = ctx.slotAt.get(i);
       if (states[slot] === ICICLE_HANGING && !litIcicles.includes(slot)) litIcicles.push(slot);
+    }
+    if (type === 'lever') {
+      const slot = ctx.slotAt.get(i);
+      flippedLevers.push(slot);
+      live = live.slice();
+      live[slot] = live[slot] === LEVER_ON ? LEVER_OFF : LEVER_ON;
+    }
+    if (type === 'plate') {
+      pressedPlates.push(ctx.gateSlot);
+      live = live.slice();
+      live[ctx.gateSlot] = live[ctx.gateSlot] === GATES_OPEN ? GATES_CLOSED : GATES_OPEN;
     }
     if (type === 'vines') return result(i, { grabbed: true });
 
@@ -755,7 +909,7 @@ function resolveMove(ctx, x, y, dx, dy, tick, states) {
       teleported = true;
       const partner = ctx.portalPartner.get(i);
       path.push(partner);
-      const partnerLabel = hazardAt(ctx, partner, tick, states);
+      const partnerLabel = hazardAt(ctx, partner, tick, live);
       if (partnerLabel) return result(partner, { death: { label: partnerLabel, idx: partner } });
       return result(partner);
     }
@@ -765,8 +919,8 @@ function resolveMove(ctx, x, y, dx, dy, tick, states) {
       // after it, if you could step onto that one moving this way.
       const [mx, my] = [cx + mdx, cy + mdy];
       const [lx, ly] = [cx + mdx * MUSHROOM_HOP, cy + mdy * MUSHROOM_HOP];
-      const midOpen = mx >= 0 && mx < size && my >= 0 && my < size && !isSolidAt(ctx, my * size + mx, states);
-      if (!midOpen || !canStepOnto(ctx, lx, ly, mdx, mdy, states)) return result(i);
+      const midOpen = mx >= 0 && mx < size && my >= 0 && my < size && !isSolidAt(ctx, my * size + mx, live, tick);
+      if (!midOpen || !canStepOnto(ctx, lx, ly, mdx, mdy, live, tick)) return result(i);
       hops.push(path.length);
       cx = lx;
       cy = ly;
@@ -774,9 +928,9 @@ function resolveMove(ctx, x, y, dx, dy, tick, states) {
     }
 
     let push = null;
-    if (type === 'ice') push = iceSlideDirection(ctx, cx, cy, mdx, mdy, states);
+    if (type === 'ice') push = iceSlideDirection(ctx, cx, cy, mdx, mdy, live, tick);
     else if (tileFamily(type) === 'current') push = tileDirection(type);
-    if (!push || !canStepOnto(ctx, cx + push[0], cy + push[1], push[0], push[1], states)) return result(i);
+    if (!push || !canStepOnto(ctx, cx + push[0], cy + push[1], push[0], push[1], live, tick)) return result(i);
 
     leave(i);
     [mdx, mdy] = push;
@@ -785,18 +939,24 @@ function resolveMove(ctx, x, y, dx, dy, tick, states) {
   }
 }
 
-// How a multi-tile move (ice slide, current push, mushroom bounce, portal
-// warp) plays out over time, for animating it: `stops` lists every tile the
-// player passes through (starting with fromIdx) and when they arrive there,
-// in ms. A stop reached by portal is marked `warp` (it gets a vanish/
-// reappear instead of a glide, and takes twice as long); one reached by a
-// mushroom bounce (`hops` holds its position in path) is marked `hop` (an
-// arc over the tile in between). `durationMs` is the whole move. Pure, so
-// solver mode (input lock, deferred death/win) and renderLevel (the
-// animation itself) agree on the timing.
+// How a move plays out over time, for animating it: `stops` lists every
+// tile the player passes through (starting with fromIdx) and when they
+// arrive there, in ms. A plain one-tile step is a walk and takes
+// WALK_STEP_MS; every tile of a multi-tile move (ice slide, current push,
+// mushroom bounce, portal warp) takes SLIDE_MS_PER_TILE. A stop reached by
+// portal is marked `warp` (it gets a vanish/reappear instead of a glide,
+// and takes twice as long); one reached by a mushroom bounce (`hops` holds
+// its position in path) is marked `hop` (an arc over the tile in between).
+// `durationMs` is the whole move. Pure, so solver mode (input lock,
+// deferred death/win) and renderLevel (the animation itself) agree on the
+// timing.
+const WALK_STEP_MS = 150;
 const SLIDE_MS_PER_TILE = 85;
 
 function slideTimeline(size, fromIdx, path, hops = []) {
+  if (path.length === 1 && !hops.length) {
+    return { stops: [{ idx: fromIdx, t: 0, warp: false, hop: false }, { idx: path[0], t: WALK_STEP_MS, warp: false, hop: false }], durationMs: WALK_STEP_MS, walk: true };
+  }
   const stops = [{ idx: fromIdx, t: 0, warp: false, hop: false }];
   let t = 0;
   let prev = fromIdx;
@@ -808,12 +968,12 @@ function slideTimeline(size, fromIdx, path, hops = []) {
     stops.push({ idx, t, warp, hop });
     prev = idx;
   });
-  return { stops, durationMs: t };
+  return { stops, durationMs: t, walk: false };
 }
 
 // BFS reachability check from start to goal, returning both whether the
 // level is solvable and — since BFS explores in turn order — the length of
-// the *shortest* solution in turns. Standalone and DOM-free so it can be
+// the *shortest* solution in turns (parMoves, below, counts moves instead). Standalone and DOM-free so it can be
 // reused by Creative Mode's Validate button, the sharing gate, the campaign
 // level checks, and (via its turn count) the Daily Puzzle builder
 // challenge's bot-scoring. `isSolvable` below is a thin boolean-only
@@ -835,6 +995,23 @@ const BFS_MAX_CYCLE = 720;
 const BFS_ACTIONS = [[1, 0], [-1, 0], [0, 1], [0, -1], [0, 0]];
 
 function solveBFS(level) {
+  return searchLevel(level, false);
+}
+
+// The fewest *moves* (waits are free) that beat the level, or null if it
+// can't be beaten — par for star ratings (see starsFor). Same search as
+// solveBFS, but a wait costs nothing, so it can differ from solveBFS's
+// turn count when the quickest route in time isn't the one with the fewest
+// steps.
+function parMoves(level) {
+  return searchLevel(level, true).moves;
+}
+
+// The search behind solveBFS and parMoves: a breadth-first search in layers
+// of cost, where a move always costs 1 and a wait costs 1 (turns) or 0
+// (freeWaits — moves only). Zero-cost edges stay in the current layer, so
+// the first win found is always the cheapest.
+function searchLevel(level, freeWaits) {
   const { size, tiles, start, goal } = level;
   if (!start || !goal) return { solvable: false, moves: null };
 
@@ -854,9 +1031,12 @@ function solveBFS(level) {
   const cycle = ctx.cycleLength <= BFS_MAX_CYCLE ? ctx.cycleLength : null;
   const timeSlots = cycle || BFS_MAX_CYCLE + 1;
   const hasObjects = ctx.objectCount > 0;
+  // Object states are single digits, except the ghost's tile — so a room
+  // with a ghost needs separators in its keys.
+  const joiner = ctx.ghost ? ',' : '';
   const keyOf = (idx, turn, states, held) => {
     let key = String(idx * timeSlots + (cycle ? turn % cycle : turn));
-    if (hasObjects) key += `:${states.join('')}`;
+    if (hasObjects) key += `:${states.join(joiner)}`;
     if (held) key += `h${held}`;
     return key;
   };
@@ -864,46 +1044,76 @@ function solveBFS(level) {
   const startIdx = sy * size + sx;
   const startStates = initialObjectStates(ctx);
   const visited = new Set([keyOf(startIdx, 0, startStates, 0)]);
-  // Entries are [tile idx, turn, object states, vine hold left]; turn
-  // doubles as the number of turns taken so far, since it starts at 0 and
-  // rises by 1 per edge.
-  const queue = [[startIdx, 0, startStates, 0]];
+  // Entries are [tile idx, turn (the hazard tick), object states, vine hold
+  // left]. `layer` holds every state reachable at cost `cost`.
+  let layer = [[startIdx, 0, startStates, 0]];
 
-  for (let head = 0; head < queue.length; head++) {
-    const [idx, turn, states, held] = queue[head];
-    if (!cycle && turn >= BFS_MAX_CYCLE) continue;
-    const x = idx % size;
-    const y = Math.floor(idx / size);
+  for (let cost = 0; layer.length; cost++) {
+    const next = [];
+    const nextKeys = new Set();
+    for (let head = 0; head < layer.length; head++) {
+      const [idx, turn, states, held] = layer[head];
+      if (!cycle && turn >= BFS_MAX_CYCLE) continue;
+      const x = idx % size;
+      const y = Math.floor(idx / size);
 
-    for (const [dx, dy] of BFS_ACTIONS) {
-      const waiting = dx === 0 && dy === 0;
-      if (held > 0 && !waiting) continue;
-      if (waiting && held === 0 && tiles[idx] === 'frost') continue; // frostbite
+      for (const [dx, dy] of BFS_ACTIONS) {
+        const waiting = dx === 0 && dy === 0;
+        if (held > 0 && !waiting) continue;
+        if (waiting && held === 0 && tiles[idx] === 'frost') continue; // frostbite
 
-      let final = idx;
-      let nextStates = states;
-      let nextHeld = Math.max(0, held - 1);
-      if (!waiting) {
-        const move = resolveMove(ctx, x, y, dx, dy, turn, states);
-        if (!move || move.death) continue;
-        if (move.won) return { solvable: true, moves: turn + 1 };
-        final = move.final;
-        nextHeld = move.grabbed ? VINE_HOLD_TICKS : 0;
-        if (hasObjects) nextStates = applyMoveToObjects(states, move);
-      }
+        let final = idx;
+        let nextStates = states;
+        let nextHeld = Math.max(0, held - 1);
+        if (!waiting) {
+          const move = resolveMove(ctx, x, y, dx, dy, turn, states);
+          if (!move || move.death) continue;
+          if (move.won) return { solvable: true, moves: cost + 1 };
+          final = move.final;
+          nextHeld = move.grabbed ? VINE_HOLD_TICKS : 0;
+          if (hasObjects) nextStates = applyMoveToObjects(states, move);
+        }
 
-      if (hasObjects) nextStates = advanceObjects(ctx, nextStates);
-      if (hazardAt(ctx, final, turn + 1, nextStates)) continue;
+        if (hasObjects) nextStates = advanceObjects(ctx, nextStates, final, turn + 1);
+        if (hazardAt(ctx, final, turn + 1, nextStates)) continue;
 
-      const key = keyOf(final, turn + 1, nextStates, nextHeld);
-      if (!visited.has(key)) {
-        visited.add(key);
-        queue.push([final, turn + 1, nextStates, nextHeld]);
+        const entry = [final, turn + 1, nextStates, nextHeld];
+        const key = keyOf(final, turn + 1, nextStates, nextHeld);
+        if (visited.has(key)) continue;
+        if (waiting && freeWaits) {
+          visited.add(key);
+          layer.push(entry);
+        } else if (!nextKeys.has(key)) {
+          nextKeys.add(key);
+          next.push([key, entry]);
+        }
       }
     }
+    // A state queued for the next layer may have been reached for free
+    // later in this one; only the ones still unvisited carry on.
+    layer = [];
+    next.forEach(([key, entry]) => {
+      if (visited.has(key)) return;
+      visited.add(key);
+      layer.push(entry);
+    });
   }
 
   return { solvable: false, moves: null };
+}
+
+// Star rating for beating a level in `moves` against its par: 3 for par or
+// better, 2 for up to 50% over, 1 for finishing at all. null without a par.
+function starsFor(moves, par) {
+  if (!par) return null;
+  if (moves <= par) return 3;
+  if (moves <= Math.floor(par * 1.5)) return 2;
+  return 1;
+}
+
+// A rating as three stars, filled or hollow: '★★☆'.
+function starText(stars) {
+  return '★'.repeat(stars) + '☆'.repeat(3 - stars);
 }
 
 function isSolvable(level) {
@@ -1104,6 +1314,28 @@ const DAILY_SOLVER_PARAMS = {
       extras: { snapjaw: 2, boar: 2, portalPairs: 1 },
     },
   },
+  // Castle days are rare (see dailyThemeFor), and a notch harder than the
+  // other worlds at each difficulty — the castle is the bonus world.
+  castle: {
+    easy: {
+      size: 7, wallDensity: 0.10, trapDensity: 0.05, onewayDensity: 0, iceDensity: 0, currentDensity: 0,
+      thinIceDensity: 0.06, crusherDensity: 0.06,
+      timedSpikeShare: 0.3, hiddenSpikeShare: 0,
+      extras: { turret: 1, plate: 1, gate: 2 },
+    },
+    medium: {
+      size: 8, wallDensity: 0.12, trapDensity: 0.06, onewayDensity: 0.03, iceDensity: 0, currentDensity: 0,
+      thinIceDensity: 0.06, crusherDensity: 0.06,
+      timedSpikeShare: 0.4, hiddenSpikeShare: 0.15,
+      extras: { turret: 1, bomb: 1, plate: 1, gate: 3 },
+    },
+    hard: {
+      size: 10, wallDensity: 0.13, trapDensity: 0.07, onewayDensity: 0.04, iceDensity: 0, currentDensity: 0,
+      thinIceDensity: 0.05, crusherDensity: 0.05,
+      timedSpikeShare: 0.5, hiddenSpikeShare: 0.2,
+      extras: { turret: 2, bomb: 1, plate: 2, gate: 4, ghost: 1, portalPairs: 1 },
+    },
+  },
 };
 
 const ONEWAY_TYPES = ['oneway-up', 'oneway-right', 'oneway-down', 'oneway-left'];
@@ -1127,10 +1359,13 @@ function seededShuffle(rng, arr) {
 function buildRandomSolverLevel(rng, params) {
   const {
     size, wallDensity, trapDensity, onewayDensity, iceDensity, currentDensity,
-    thinIceDensity = 0, frostDensity = 0, vinesDensity = 0, mushroomDensity = 0,
+    thinIceDensity = 0, frostDensity = 0, vinesDensity = 0, mushroomDensity = 0, crusherDensity = 0,
     timedSpikeShare, hiddenSpikeShare,
   } = params;
-  const extras = { bomb: 0, turret: 0, vent: 0, imp: 0, portalPairs: 0, icicle: 0, snapjaw: 0, boar: 0, ...params.extras };
+  const extras = {
+    bomb: 0, turret: 0, vent: 0, imp: 0, portalPairs: 0, icicle: 0, snapjaw: 0, boar: 0, plate: 0, gate: 0, ghost: 0,
+    ...params.extras,
+  };
   const level = buildFallbackSolverLevel(size);
   const [sx, sy] = level.start;
 
@@ -1159,6 +1394,8 @@ function buildRandomSolverLevel(rng, params) {
         setTileType(level, x, y, 'vines');
       } else if ((roll -= mushroomDensity) < 0) {
         setTileType(level, x, y, 'mushroom');
+      } else if ((roll -= crusherDensity) < 0) {
+        setTileType(level, x, y, 'crusher');
       }
     }
   }
@@ -1188,6 +1425,9 @@ function buildRandomSolverLevel(rng, params) {
   place(extras.icicle, () => 'icicle');
   place(extras.snapjaw, () => 'snapjaw');
   place(extras.boar, () => seededChoice(rng, ['boar-h', 'boar-v']));
+  place(extras.plate, () => 'plate');
+  place(extras.gate, () => 'gate');
+  place(extras.ghost, () => 'ghost');
 
   // Turrets: a random non-corner border wall, facing into the room.
   const borderSlots = [];
@@ -1225,10 +1465,16 @@ function buildFallbackSolverLevel(size) {
 // calendar day, so every player gets the same theme on the same date. The
 // day number comes from the date string itself (as a UTC calendar date),
 // so time zones can't shift it.
+// Castle days are rare: on roughly DAILY_CASTLE_CHANCE of dates (picked by
+// hashing the date, so everyone gets the same ones) the castle takes over;
+// every other date keeps the lava/ice/grass rotation it always had.
+const DAILY_CASTLE_CHANCE = 1 / 7;
+
 function dailyThemeFor(dateStr) {
+  if (mulberry32(hashStringToSeed(`trap-room-daily-castle:${dateStr}`))() < DAILY_CASTLE_CHANCE) return 'castle';
   const [y, m, d] = dateStr.split('-').map(Number);
   const dayNumber = Math.round(Date.UTC(y, m - 1, d) / 86400000);
-  return THEMES[mod(dayNumber, THEMES.length)];
+  return MAIN_THEMES[mod(dayNumber, MAIN_THEMES.length)];
 }
 
 // Generates the fixed layout for a given date's solver challenge at a given
@@ -1246,9 +1492,43 @@ function generateDailySolverLevel(dateStr, difficulty) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const rng = mulberry32(baseSeed ^ Math.imul(attempt + 1, 2654435761));
     const level = buildRandomSolverLevel(rng, params);
-    if (isSolvable(level)) return { ...level, theme };
+    if (isSolvable(level)) return { ...addDailyLevers(level, dateStr, difficulty), theme };
   }
   return { ...buildFallbackSolverLevel(params.size), theme };
+}
+
+// Some days' solver rooms also get levers: DAILY_LEVER_CHANCE of days, per
+// difficulty, with DAILY_LEVER_COUNTS[difficulty] of them. Rolled from a
+// seed of its own, after the room itself is settled, so a day without
+// levers is exactly the room it always was.
+const DAILY_LEVER_CHANCE = 0.4;
+const DAILY_LEVER_COUNTS = { easy: 1, medium: 2, hard: 3 };
+
+// Drops the day's levers onto open floor (never right next to the start),
+// trying a handful of spots until the room is still solvable with every
+// lever to flip; gives up and returns the room unchanged if none work.
+function addDailyLevers(level, dateStr, difficulty) {
+  const rng = mulberry32(dailySeedFor(dateStr, 'levers', difficulty));
+  if (rng() >= DAILY_LEVER_CHANCE) return level;
+  const { size } = level;
+  const [sx, sy] = level.start;
+  const openCells = [];
+  for (let y = 1; y < size - 1; y++) {
+    for (let x = 1; x < size - 1; x++) {
+      const nearStart = Math.abs(x - sx) + Math.abs(y - sy) <= 1;
+      if (!nearStart && level.tiles[y * size + x] === 'empty') openCells.push([x, y]);
+    }
+  }
+  const count = Math.min(DAILY_LEVER_COUNTS[difficulty], MAX_LEVERS);
+  if (openCells.length < count) return level;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const withLevers = { ...level, tiles: level.tiles.slice() };
+    seededShuffle(rng, openCells).slice(0, count).forEach(([x, y]) => {
+      withLevers.tiles[y * size + x] = 'lever';
+    });
+    if (isSolvable(withLevers)) return withLevers;
+  }
+  return level;
 }
 
 // --- Builder challenge: daily constraints + bot scoring --------------------
@@ -1422,7 +1702,8 @@ function tileAriaLabel(type, x, y, theme) {
 // Several types share one tile type but have more than one look: timed
 // spikes, vents and snapjaws depend on the turn, and — only during play
 // (`world` given) — bombs show their fuse state, thin ice cracks under you
-// and breaks behind you, icicles shake and fall, hidden spikes pass for
+// and breaks behind you, icicles shake and fall, levers show which way
+// they're thrown, the exit is barred while any lever is off, hidden spikes pass for
 // plain floor until they've been revealed, and imp/boar tiles show bare
 // floor because the creature itself is drawn as a moving overlay (see
 // hazardOverlaysFor). Builder/view mode (no `world`) always shows the
@@ -1440,6 +1721,7 @@ function textureKeyForTile(tileType, turn, world, idx) {
     return 'snapjaw';
   }
   if (tileType === 'hiddenspike') return world.revealed.has(idx) ? 'spike' : 'empty';
+  if (tileType === 'goal') return isExitLocked(world.ctx, world.states) ? 'goal-locked' : 'goal';
   if (family === 'imp' || family === 'boar') return 'empty';
   const state = objectState(world.ctx, idx, world.states);
   if (tileType === 'bomb') {
@@ -1454,38 +1736,102 @@ function textureKeyForTile(tileType, turn, world, idx) {
     if (state === ICICLE_FALLEN) return 'icicle-fallen';
     return state >= 1 && state <= ICICLE_DROP_TICKS ? 'icicle-shaking' : 'icicle';
   }
+  if (tileType === 'lever') return state === LEVER_ON ? 'lever-on' : 'lever';
+  if (tileType === 'crusher') return isCrusherSlammingAtTurn(turn) || isCrusherDownAtTurn(turn) ? 'crusher-down' : 'crusher';
+  if (tileType === 'gate') return gatesOpen(world.ctx, world.states) ? 'gate-open' : 'gate';
+  if (tileType === 'ghost') return 'empty';
   return tileType;
 }
 
+// How the player looks on each kind of ground (keyed by tileFamily) — the
+// one place to add or change a terrain animation. What the ground *does*
+// to movement (ice slides you, currents shove you, ...) lives in
+// resolveMove; this only decides how it looks.
+//   travel — the pose held while a move carries the player across that
+//            ground (anim-<travel>; see injectSpriteStyles in sprites.js).
+//            The first tile on a move's path with a travel pose picks it;
+//            a move with none is a plain walk.
+//   stance — an extra motion layered over whatever pose is playing while
+//            the player stands on that ground (terrain-<stance> in
+//            style.css).
+const TERRAIN_ANIMATIONS = {
+  ice: { travel: 'slip' },       // sliding floor: feet out, arms flailing
+  current: { travel: 'shove' },  // shoved along, stumbling forward
+  mushroom: { travel: 'bounce' }, // flung up, arms high
+  portal: { travel: 'warp' },    // spun through
+  thinice: { stance: 'wobble' }, // gives way once you step off: teetering
+  icicle: { stance: 'wobble' },  // about to fall on you (only while shaking)
+  frost: { stance: 'shiver' },   // freezing: don't stay
+};
+
+// The pose for a whole move (see resolveMove): 'walk' unless some tile on
+// its path carries the player along.
+function travelPoseFor(tiles, move) {
+  for (const idx of move.path) {
+    const entry = TERRAIN_ANIMATIONS[tileFamily(tiles[idx])];
+    if (entry && entry.travel) return entry.travel;
+  }
+  return 'walk';
+}
+
+// The stance for a player standing on tile idx right now, or null. Falling
+// ground only makes you unsteady while it's actually about to go: intact
+// thin ice, an icicle that's shaking.
+function terrainStanceAt(ctx, idx, states) {
+  const type = ctx.tiles[idx];
+  const entry = TERRAIN_ANIMATIONS[tileFamily(type)];
+  if (!entry || !entry.stance) return null;
+  const state = objectState(ctx, idx, states);
+  if (type === 'thinice' && state !== THIN_ICE_INTACT) return null;
+  if (type === 'icicle' && !(state >= 1 && state <= ICICLE_DROP_TICKS)) return null;
+  return entry.stance;
+}
+
 // Moving/transient hazards drawn on top of tiles during play, as
-// idx -> [kind, ...]. A kind is a HAZARD_TEXTURES key, optionally with a
-// '-flip' suffix (a boar charging left); 'dust' (the tile a boar just
-// charged across) has no texture of its own, only CSS.
-function hazardOverlaysFor(ctx, tick, states) {
+// idx -> [{ kind, from }, ...]. A kind is a HAZARD_TEXTURES key, optionally
+// with a '-flip' suffix (a boar charging left); 'dust' (the tile a boar
+// just charged across) has no texture of its own, only CSS. `from` lists
+// the tiles a moving hazard (imp, boar, fireball) crossed to get here this
+// tick, oldest first, so renderLevel can glide it in instead of popping it
+// into place; empty for anything that didn't move.
+// `ghostFrom`, if given, is the tile the ghost last drifted from (solver
+// mode tracks it), so it glides between tiles too.
+function hazardOverlaysFor(ctx, tick, states, ghostFrom) {
   const overlays = new Map();
-  const add = (idx, kind) => {
+  const add = (idx, kind, from = []) => {
     if (!overlays.has(idx)) overlays.set(idx, []);
-    overlays.get(idx).push(kind);
+    overlays.get(idx).push({ kind, from: from.filter((i, k) => i !== idx && i !== from[k - 1]) });
   };
   ctx.flameCells.forEach((_, idx) => {
     if (isFlameAt(ctx, idx, tick, states)) add(idx, 'flame');
   });
-  ctx.fireballDistances.forEach((_, idx) => {
-    if (isFireballAt(ctx, idx, tick, states)) add(idx, 'fireball');
+  ctx.fireballDistances.forEach((shots, idx) => {
+    if (!isFireballAt(ctx, idx, tick, states)) return;
+    const shot = shots.find(({ d, blockers }) => mod(tick - d, TURRET_PERIOD) === 0 && !lineBlocked(blockers, states));
+    add(idx, 'fireball', [shot.from]);
   });
-  ctx.imps.forEach((imp) => add(impPositionAt(imp, tick), 'imp'));
+  ctx.imps.forEach((imp) => add(impPositionAt(imp, tick), 'imp', [impPositionAt(imp, tick - 1)]));
   ctx.boars.forEach((boar) => {
     const [at, ...crossed] = boarCellsAt(boar, tick);
     const from = crossed[crossed.length - 1];
     const headingLeft = at % ctx.size < from % ctx.size;
     crossed.forEach((idx) => { if (idx !== at) add(idx, 'dust'); });
-    add(at, headingLeft ? 'boar-flip' : 'boar');
+    const trail = [];
+    for (let k = BOAR_SPEED; k >= 1; k--) trail.push(patrolPositionAt(boar, BOAR_SPEED * tick - k));
+    add(at, headingLeft ? 'boar-flip' : 'boar', trail);
   });
   if (isSnapjawBitingAtTurn(tick)) ctx.biteCells.forEach((idx) => add(idx, 'bite'));
   ctx.icicles.forEach(({ idx, slot }) => {
     if (states[slot] === ICICLE_CRASHING) add(idx, 'icicle-crash');
   });
+  if (isCrusherSlammingAtTurn(tick)) {
+    ctx.tiles.forEach((type, idx) => { if (type === 'crusher') add(idx, 'crush'); });
+  }
   blastCellsFor(ctx, states).forEach((idx) => add(idx, 'blast'));
+  if (ctx.ghost) {
+    const at = states[ctx.ghost.slot];
+    add(at, 'ghost', ghostFrom === undefined ? [] : [ghostFrom]);
+  }
   return overlays;
 }
 
@@ -1520,6 +1866,28 @@ function slideKeyframes(size, timeline, finalIdx, gapPx) {
   return frames;
 }
 
+// How long a moving hazard (imp, boar, fireball) takes to glide into the
+// tile it moved to at the start of a tick. Kept short: the game already
+// counts it as there, so it mustn't visibly lag behind what can kill you.
+const MOVER_GLIDE_MS = 180;
+
+// Glides an overlay element (sitting on tile finalIdx) in from `from` (the
+// tiles it crossed, oldest first; see hazardOverlaysFor), resuming
+// elapsedMs into the glide. Evenly spaced, so a boar crossing two tiles in
+// one glide simply moves twice as fast.
+function glideOverlay(el, size, from, finalIdx, elapsedMs, gapPx) {
+  const cells = [...from, finalIdx];
+  const step = MOVER_GLIDE_MS / (cells.length - 1);
+  const timeline = {
+    stops: cells.map((idx, k) => ({ idx, t: k * step, warp: false, hop: false })),
+    durationMs: MOVER_GLIDE_MS,
+  };
+  const animation = el.animate(slideKeyframes(size, timeline, finalIdx, gapPx), {
+    duration: MOVER_GLIDE_MS, easing: 'ease-out', fill: 'both',
+  });
+  animation.currentTime = elapsedMs;
+}
+
 // builderDnD, if given, makes the grid interactive for drag-and-drop tile
 // editing (used by Creative Mode). Tiles are rendered as real <button>
 // elements (not divs) so they're part of the tab order and get a focus
@@ -1535,24 +1903,30 @@ function slideKeyframes(size, timeline, finalIdx, gapPx) {
 // [x, y] — this is purely a rendering overlay and never touches
 // level.tiles, so the level's own data stays untouched by the player
 // moving around it. playerAnim ({ facing: 'left'|'right', state:
-// 'idle'|'walk'|'hit'|'win'|'slide'|'held', elapsedMs }) picks which
-// pixel-art pose/animation plays; defaults to facing right, idle when
-// playerPos is given without it. elapsedMs resumes a one-shot animation
+// 'idle'|'walk'|'hit'|'win'|'held'|<a TERRAIN_ANIMATIONS travel pose>,
+// stance, elapsedMs }) picks which pixel-art pose/animation plays, and
+// stance (see terrainStanceAt) layers the ground's own wobble/shiver over
+// it; defaults to facing right, idle when playerPos is given without it. elapsedMs resumes a one-shot animation
 // part-way through (via a negative animation-delay) so re-rendering the
 // grid on a hazard tick doesn't restart the player's walk/hit animation
 // from frame one.
-// playerAnim.slide ({ fromIdx, path, hops, elapsedMs }), during an ice
-// slide / current push / mushroom bounce / portal warp, glides the player
-// from fromIdx through every tile in path (see slideTimeline) to
-// playerPos, again resuming part-way through on a re-render, and makes
-// each ice tile crossed glint as the player passes over it.
+// playerAnim.slide ({ fromIdx, path, hops, elapsedMs }), during any move —
+// a one-tile step or an ice slide / current push / mushroom bounce / portal
+// warp — glides the player from fromIdx through every tile in path (see
+// slideTimeline) to playerPos, again resuming part-way through on a
+// re-render, and makes each ice tile crossed glint as the player passes
+// over it.
 // turn picks the look of time-based tiles (timed spikes, vents, turrets,
 // snapjaws); defaults to turn 0 for callers that don't track turns, e.g.
 // Creative Mode.
-// world ({ ctx, states, revealed, playerIdx, held }), given only by solver
-// mode, turns on the live-play look: moving hazards drawn as overlays,
-// object states (bomb fuses, thin ice, icicles), hidden spikes disguised as
-// floor, and vines wrapped round a held player. Solver mode passes the same
+// world ({ ctx, states, revealed, playerIdx, held, tickElapsedMs,
+// collapses }), given only by solver mode, turns on the live-play look:
+// moving hazards drawn as overlays (gliding in over the first
+// MOVER_GLIDE_MS of the tick, tickElapsedMs in), object states (bomb
+// fuses, thin ice, icicles), hidden spikes disguised as floor, vines
+// wrapped round a held player, and thin ice caving in behind the player
+// (collapses: [{ idx, elapsedMs }], elapsedMs since that tile gave way —
+// negative while the player is still on their way off it). Solver mode passes the same
 // tick its danger checks use, so what's drawn and what kills can never
 // disagree.
 function renderLevel(level, container, { builderDnD, playerPos, playerAnim, turn = 0, world } = {}) {
@@ -1561,7 +1935,9 @@ function renderLevel(level, container, { builderDnD, playerPos, playerAnim, turn
   THEMES.forEach((t) => container.classList.toggle(`theme-${t}`, t === theme));
   container.innerHTML = '';
 
-  const overlays = world ? hazardOverlaysFor(world.ctx, turn, world.states) : null;
+  const overlays = world ? hazardOverlaysFor(world.ctx, turn, world.states, world.ghostFrom) : null;
+  const gapPx = parseFloat(getComputedStyle(container).columnGap) || 0;
+  const collapseAt = new Map((world && world.collapses || []).map(({ idx, elapsedMs }) => [idx, elapsedMs]));
   const slide = playerAnim && playerAnim.slide;
   const timeline = slide ? slideTimeline(level.size, slide.fromIdx, slide.path, slide.hops) : null;
   const glintAt = new Map(); // ice tile idx -> ms when the player crosses it
@@ -1608,8 +1984,11 @@ function renderLevel(level, container, { builderDnD, playerPos, playerAnim, turn
       if (family === 'vent' && isVentWarningAtTurn(turn)) tileEl.classList.add('vent-warning');
       if (family === 'turret' && isTurretChargedAtTurn(turn)) tileEl.classList.add('turret-charged');
       if (tileType === 'snapjaw' && isSnapjawWarningAtTurn(turn)) tileEl.classList.add('vent-warning');
+      if (tileType === 'crusher' && isCrusherWarningAtTurn(turn)) tileEl.classList.add('vent-warning');
       if (textureKey === 'icicle-shaking') tileEl.classList.add('icicle-shaking');
+      if (textureKey === 'goal-locked') tileEl.classList.add('goal-locked');
       if (tileType === 'frost' && isPlayerTile) tileEl.classList.add('frost-underfoot');
+      if (textureKey === 'thinice-cracked') tileEl.classList.add('thinice-underfoot');
       if (textureKey === 'bomb-lit') {
         tileEl.classList.add('bomb-lit');
         const countdownEl = document.createElement('span');
@@ -1617,13 +1996,33 @@ function renderLevel(level, container, { builderDnD, playerPos, playerAnim, turn
         countdownEl.textContent = String(objectState(world.ctx, i, world.states));
         tileEl.appendChild(countdownEl);
       }
-      (overlays.get(i) || []).forEach((kind) => {
+      (overlays.get(i) || []).forEach(({ kind, from }) => {
         const overlayEl = document.createElement('div');
         overlayEl.className = `hazard-sprite hazard-${kind}`;
         const overlayTexture = themeHazardTexture(theme, kind.replace(/-flip$/, ''));
         if (overlayTexture) overlayEl.style.backgroundImage = `url("${overlayTexture}")`;
-        tileEl.appendChild(overlayEl);
+        const gliding = from.length && turn > 0 && world.tickElapsedMs < MOVER_GLIDE_MS;
+        if (!gliding) {
+          tileEl.appendChild(overlayEl);
+          return;
+        }
+        // A wrapper does the gliding, so the sprite's own CSS animation
+        // (the imp's hop, the boar's trot) keeps its transform.
+        const moverEl = document.createElement('div');
+        moverEl.className = 'hazard-mover';
+        moverEl.appendChild(overlayEl);
+        tileEl.appendChild(moverEl);
+        tileEl.classList.add('tile-has-mover');
+        glideOverlay(moverEl, level.size, from, i, world.tickElapsedMs, gapPx);
       });
+      if (collapseAt.has(i)) {
+        // The intact slab sinks away, revealing the broken tile under it.
+        const slabEl = document.createElement('div');
+        slabEl.className = 'hazard-sprite ice-collapse';
+        slabEl.style.backgroundImage = `url("${themeTexture(theme, 'thinice-cracked')}")`;
+        slabEl.style.animationDelay = `${-collapseAt.get(i)}ms`;
+        tileEl.appendChild(slabEl);
+      }
     }
 
     if (glintAt.has(i)) {
@@ -1632,19 +2031,23 @@ function renderLevel(level, container, { builderDnD, playerPos, playerAnim, turn
     }
 
     if (isPlayerTile) {
-      const { facing = 'right', state = 'idle', elapsedMs = 0 } = playerAnim || {};
-      // Three layers, each owning one transform: .player-slide moves the
-      // player between tiles, .player-sprite flips facing, and
-      // .player-sprite-inner runs the pose animation.
+      const { facing = 'right', state = 'idle', stance = null, elapsedMs = 0 } = playerAnim || {};
+      // Four layers, each owning one transform: .player-slide moves the
+      // player between tiles, .player-terrain adds the ground's stance
+      // (wobbling on thin ice, shivering on frost), .player-sprite flips
+      // facing, and .player-sprite-inner runs the pose animation.
       const slideEl = document.createElement('div');
       slideEl.className = 'player-slide';
+      const terrainEl = document.createElement('div');
+      terrainEl.className = `player-terrain${stance ? ` terrain-${stance}` : ''}`;
       const playerEl = document.createElement('div');
       playerEl.className = `player-sprite${facing === 'left' ? ' facing-left' : ''}`;
       const innerEl = document.createElement('div');
       innerEl.className = `player-sprite-inner anim-${state}`;
       if (elapsedMs > 0) innerEl.style.animationDelay = `-${elapsedMs}ms`;
       playerEl.appendChild(innerEl);
-      slideEl.appendChild(playerEl);
+      terrainEl.appendChild(playerEl);
+      slideEl.appendChild(terrainEl);
       tileEl.appendChild(slideEl);
 
       if (world && world.held) {
@@ -1658,9 +2061,11 @@ function renderLevel(level, container, { builderDnD, playerPos, playerAnim, turn
         // Lift this whole tile above its neighbors so the gliding player
         // isn't painted underneath tiles later in the grid.
         tileEl.classList.add('tile-has-slider');
+        // A walk eases in and out of the step; a slide keeps a steady
+        // speed so every tile it crosses gets the same time.
         const animation = slideEl.animate(
-          slideKeyframes(level.size, timeline, i, parseFloat(getComputedStyle(container).columnGap) || 0),
-          { duration: timeline.durationMs, easing: 'linear', fill: 'both' }
+          slideKeyframes(level.size, timeline, i, gapPx),
+          { duration: timeline.durationMs, easing: timeline.walk ? 'ease-in-out' : 'linear', fill: 'both' }
         );
         animation.currentTime = slide.elapsedMs;
       }
@@ -1682,6 +2087,10 @@ function renderLevel(level, container, { builderDnD, playerPos, playerAnim, turn
 // in real time (see the Movement section in SPEC.md).
 const HAZARD_TICK_MS = 500;
 
+// How far (px) a finger has to travel on the grid to count as a swipe
+// rather than a tap.
+const SWIPE_MIN_PX = 24;
+
 // Maps recognized movement keys to a [dx, dy] step. Both letter cases are
 // listed so WASD still works with caps lock/shift held.
 const KEY_DELTAS = {
@@ -1699,6 +2108,10 @@ function deathLabelFor(label, theme) {
   const shared = { spike: 'spike', 'hidden spike': 'hiddenspike', 'timed spike': 'timedspike' };
   if (shared[label]) return trapLabel(shared[label], theme).toLowerCase();
   if (label === 'fireball' && theme === 'ice') return 'ice shard';
+  if (theme === 'castle') {
+    const castle = { fireball: 'crossbow bolt', 'thin ice': 'the floorboards gave way', 'bomb blast': 'powder blast', ghost: 'the ghost got you' };
+    if (castle[label]) return castle[label];
+  }
   return label;
 }
 
@@ -1746,8 +2159,8 @@ function formatRemaining(ms) {
 
 // Runs a level: player position is tracked as separate local state (never
 // written into level.tiles), so replaying, restarting on a trap, or
-// re-sharing the same level can't corrupt its data. One keypress = one
-// move, resolved by resolveMove (the same function solveBFS uses) so ice
+// re-sharing the same level can't corrupt its data. One keypress (or swipe,
+// or D-pad tap — see tryMove) = one move, resolved by resolveMove (the same function solveBFS uses) so ice
 // slides, currents, mushroom bounces and portals play out exactly as the
 // solvability check assumed. Blocked moves are no-ops; anything deadly
 // resets to start (and counts as a death); the goal wins. Timed hazards
@@ -1759,27 +2172,35 @@ function formatRemaining(ms) {
 // For the `?level=` shared-link flow it's the raw share string; the Daily
 // Puzzle hub and the campaign pass synthetic codes instead.
 //
-// onWin({ moves, deaths, elapsedMs }), if given, is called at the end of a
-// successful run (the campaign records progress with it, the Daily Puzzle
-// its completion) — startSolverMode itself has no opinion on what winning
-// "means" beyond this level's own goal tile.
+// onWin({ moves, deaths, elapsedMs, stars }), if given, is called at the
+// end of a successful run (the campaign records progress with it, the Daily
+// Puzzle its completion) — startSolverMode itself has no opinion on what
+// winning "means" beyond this level's own goal tile. stars (1-3, or null)
+// rates the run against par: the level's fewest possible moves (see
+// parMoves), passed in as `par` when the caller already knows it
+// (the campaign caches it), otherwise worked out at the first win.
 //
 // A level with a `timeLimit` (seconds) is a timed room: the clock counts
 // down, and if it runs out the run restarts (hidden spikes already found
 // stay found).
 //
-// Returns a stop() function that removes this run's keydown listener and
+// Returns a stop() function that removes this run's input listeners and
 // clears its hazard-tick interval, so the next session can start clean.
 function startSolverMode(level, {
   grid, controlsEl, solverInfoEl, solverMessageEl, solverStatsEl,
   moveCountEl, deathCountEl, elapsedTimeEl, timeLabelEl, solverResetBtn,
-  bestScoreEl, winModalEl, winModalStatsEl, winModalResetBtn, levelCode, onWin,
+  bestScoreEl, winModalEl, winModalStatsEl, winModalStarsEl, winModalResetBtn, dpadEl,
+  levelCode, onWin, par: knownPar,
 }) {
   controlsEl.hidden = true;
   solverInfoEl.hidden = false;
   solverStatsEl.hidden = false;
+  dpadEl.hidden = false;
+  document.body.classList.add('playing');
+  let par = knownPar;
 
   const theme = levelTheme(level);
+  setMusic(theme);
   const timeLimitMs = level.timeLimit ? level.timeLimit * 1000 : 0;
   timeLabelEl.textContent = timeLimitMs ? 'Time left:' : 'Time:';
 
@@ -1788,8 +2209,13 @@ function startSolverMode(level, {
   const ctx = buildHazardContext(level);
 
   // One-shot player animations settle back to idle after this long (the
-  // longest of them, anim-hit, runs 0.45s).
+  // longest of them, anim-hit, runs 0.45s). Travel poses (see
+  // TERRAIN_ANIMATIONS) instead last exactly as long as their move.
   const ONE_SHOT_ANIM_MS = 500;
+  const ONE_SHOT_STATES = ['walk', 'hit', 'slip', 'shove', 'bounce', 'warp'];
+  // How long the thin-ice collapse animation runs (ice-collapse in
+  // style.css); after this the slab is gone and needn't be drawn.
+  const ICE_COLLAPSE_MS = 450;
 
   // Declared here (not initialized until resetRun() below) so every
   // function in this closure — including the ones defined above
@@ -1805,20 +2231,27 @@ function startSolverMode(level, {
   //                   VINE_HOLD_TICKS); moves before it are ignored.
   //   arrivedTick   — the tick the player arrived on their current tile,
   //                   for frostbite (see FROSTBITE_TICKS).
-  //   pendingFlash  — { idx, className } for the tile that just killed the
-  //                   player, applied once by the next render().
+  //   pendingFlashes — [{ idx, className }]: one-shot flashes (the tile that
+  //                   just killed the player, a lever just flipped, the exit
+  //                   unlocking), applied once by the next render().
   //   slide         — { fromIdx, path, hops, startedAt, durationMs } while
-  //                   a multi-tile move is animating.
-  //   inputLockedUntil — keypresses are ignored until the slide finishes,
-  //                   so the player can't act from a tile they visibly
-  //                   haven't reached yet.
-  //   outcomeTimer  — a death or win at the end of a slide, deferred until
+  //                   a move (one step or many tiles) is animating.
+  //   inputLockedUntil — keypresses are ignored (not queued) until the
+  //                   move finishes, so the player can't act from a tile
+  //                   they visibly haven't reached yet.
+  //   outcomeTimer  — a death or win at the end of a move, deferred until
   //                   the animation actually gets there; dying is true while
   //                   a deferred death is pending.
+  //   collapses     — [{ idx, at }]: thin ice caving in, from time `at`
+  //                   (when the player leaves the tile, per the move's
+  //                   timeline) — see renderLevel's world.collapses.
   let playerPos, won, moveCount, deathCount, facing, animState, animStartedAt, animDurationMs;
-  let startTime, timerId, processedTick, states, revealed, pendingFlash;
+  let startTime, timerId, processedTick, states, revealed, pendingFlashes;
+  // The tile the ghost drifted from on the latest tick (undefined if it
+  // didn't move), so it's drawn gliding rather than jumping.
+  let ghostFrom;
   let heldUntilTick, arrivedTick;
-  let slide, inputLockedUntil, outcomeTimer, dying;
+  let slide, inputLockedUntil, outcomeTimer, dying, collapses;
 
   function currentHazardTick() {
     return Math.floor((Date.now() - startTime) / HAZARD_TICK_MS);
@@ -1828,7 +2261,7 @@ function startSolverMode(level, {
     return playerPos[1] * level.size + playerPos[0];
   }
 
-  // durationMs: how long a one-shot state (walk/hit/slide) plays before
+  // durationMs: how long a one-shot state (walk/hit/a travel pose) plays before
   // render() settles it back to idle.
   function setAnim(state, durationMs = ONE_SHOT_ANIM_MS) {
     animState = state;
@@ -1839,34 +2272,43 @@ function startSolverMode(level, {
   function render() {
     let elapsedMs = Date.now() - animStartedAt;
     const held = !won && processedTick < heldUntilTick;
-    if (['walk', 'hit', 'slide'].includes(animState) && elapsedMs >= animDurationMs) {
+    if (ONE_SHOT_STATES.includes(animState) && elapsedMs >= animDurationMs) {
       setAnim(held ? 'held' : 'idle');
       elapsedMs = 0;
     }
     if (animState === 'held' && !held) setAnim('idle');
-    if (slide && Date.now() - slide.startedAt >= slide.durationMs) slide = null;
+    const now = Date.now();
+    if (slide && now - slide.startedAt >= slide.durationMs) slide = null;
+    collapses = collapses.filter(({ at }) => now - at < ICE_COLLAPSE_MS);
+    // The ground only gets its say once the player has actually landed.
+    const stance = !won && !slide && !dying ? terrainStanceAt(ctx, playerIdx(), states) : null;
     renderLevel(level, grid, {
       playerPos,
       playerAnim: {
         facing,
         state: animState,
+        stance,
         elapsedMs: ['idle', 'held'].includes(animState) ? 0 : elapsedMs,
-        slide: slide && { fromIdx: slide.fromIdx, path: slide.path, hops: slide.hops, elapsedMs: Date.now() - slide.startedAt },
+        slide: slide && { fromIdx: slide.fromIdx, path: slide.path, hops: slide.hops, elapsedMs: now - slide.startedAt },
       },
       turn: processedTick,
-      world: { ctx, states, revealed, playerIdx: playerIdx(), held: held && !slide },
+      world: {
+        ctx, states, revealed, playerIdx: playerIdx(), held: held && !slide, ghostFrom,
+        tickElapsedMs: now - startTime - processedTick * HAZARD_TICK_MS,
+        collapses: collapses.map(({ idx, at }) => ({ idx, elapsedMs: now - at })),
+      },
     });
     moveCountEl.textContent = String(moveCount);
     deathCountEl.textContent = String(deathCount);
 
-    // The tile that just killed the player briefly plays a "triggered"
-    // flash. renderLevel just rebuilt the whole grid, so this has to be
-    // applied as a one-shot class after the fact.
-    if (pendingFlash) {
-      const tileEl = grid.children[pendingFlash.idx];
-      if (tileEl) tileEl.classList.add(pendingFlash.className);
-      pendingFlash = null;
-    }
+    // One-shot flashes (the tile that just killed the player, a flipped
+    // lever, the exit opening). renderLevel just rebuilt the whole grid, so
+    // these have to be applied as one-shot classes after the fact.
+    pendingFlashes.forEach(({ idx, className }) => {
+      const tileEl = grid.children[idx];
+      if (tileEl) tileEl.classList.add(className);
+    });
+    pendingFlashes = [];
   }
 
   function setMessage(text, className) {
@@ -1891,18 +2333,24 @@ function startSolverMode(level, {
   function killPlayer(label, idx) {
     playerPos = [...level.start];
     slide = null;
+    collapses = [];
     inputLockedUntil = 0;
     dying = false;
     deathCount++;
+    // Each life starts its move count over, so the moves shown (and the
+    // ones a win is scored and starred on) are the winning life's alone.
+    moveCount = 0;
     setAnim('hit');
     states = initialObjectStates(ctx);
+    ghostFrom = undefined;
     heldUntilTick = 0;
     arrivedTick = processedTick;
     if (label === 'hidden spike') revealed.add(idx);
     setMessage(`Ouch — ${deathLabelFor(label, theme)}! Back to start.`, 'invalid');
     flashGrid('flash-fail');
     const spikeDeath = label.endsWith('spike');
-    pendingFlash = { idx, className: spikeDeath ? 'trap-triggered' : 'hazard-triggered' };
+    pendingFlashes.push({ idx, className: spikeDeath ? 'trap-triggered' : 'hazard-triggered' });
+    playSound('death');
   }
 
   function updateElapsedDisplay() {
@@ -1927,7 +2375,17 @@ function startSolverMode(level, {
   function advanceWorldTo(targetTick) {
     while (processedTick < targetTick) {
       processedTick++;
-      if (ctx.objectCount) states = advanceObjects(ctx, states);
+      if (ctx.objectCount) {
+        const before = states;
+        states = advanceObjects(ctx, states, playerIdx(), processedTick);
+        if (ctx.bombs.some(({ slot }) => states[slot] === BOMB_EXPLODING && before[slot] !== BOMB_EXPLODING)) playSound('blast');
+        if (ctx.icicles.some(({ slot }) => states[slot] === ICICLE_CRASHING && before[slot] !== ICICLE_CRASHING)) playSound('icicle-crash');
+        if (ctx.ghost) {
+          const { slot } = ctx.ghost;
+          ghostFrom = states[slot] !== before[slot] ? before[slot] : undefined;
+        }
+      }
+      if (isCrusherSlammingAtTurn(processedTick) && ctx.tiles.includes('crusher')) playSound('crush');
       if (dying) continue; // already doomed — see outcomeTimer
       const idx = playerIdx();
       let label = hazardAt(ctx, idx, processedTick, states);
@@ -1942,6 +2400,7 @@ function startSolverMode(level, {
     const found = revealed;
     resetRun();
     revealed = found;
+    playSound('timeup');
     setMessage("⏱ Out of time! The room resets — spikes you've found stay found.", 'invalid');
     flashGrid('flash-fail');
     render();
@@ -1979,9 +2438,23 @@ function startSolverMode(level, {
     winModalEl.hidden = true;
   }
 
-  function showWinModal(elapsedMs) {
+  function showWinModal(elapsedMs, stars) {
     winModalStatsEl.textContent =
       `Time: ${formatElapsed(elapsedMs)}   ·   Moves: ${moveCount}   ·   Deaths: ${deathCount}`;
+    winModalStarsEl.hidden = !stars;
+    if (stars) {
+      winModalStarsEl.innerHTML = '';
+      const row = document.createElement('span');
+      row.className = 'star-row';
+      row.setAttribute('aria-label', `${stars} of 3 stars`);
+      row.textContent = starText(stars);
+      const note = document.createElement('span');
+      note.className = 'star-note';
+      note.textContent = stars === 3
+        ? `Par is ${par} moves — perfect!`
+        : `Par is ${par} moves. Match it for ${stars === 2 ? 'the third star' : 'all three stars'}.`;
+      winModalStarsEl.append(row, note);
+    }
     winModalEl.hidden = false;
   }
 
@@ -1997,12 +2470,14 @@ function startSolverMode(level, {
     facing = 'right';
     setAnim('idle');
     states = initialObjectStates(ctx);
+    ghostFrom = undefined;
     revealed = new Set();
     heldUntilTick = 0;
     arrivedTick = 0;
-    pendingFlash = null;
+    pendingFlashes = [];
     clearTimeout(outcomeTimer);
     slide = null;
+    collapses = [];
     inputLockedUntil = 0;
     dying = false;
     setMessage('', '');
@@ -2021,7 +2496,10 @@ function startSolverMode(level, {
     clearInterval(timerId);
     setMessage(`You win! 🎉 (${moveCount} move${moveCount === 1 ? '' : 's'})`, 'valid');
     flashGrid('flash-win');
-    showWinModal(elapsedMs);
+    playSound('win');
+    if (par === undefined) par = parMoves(level);
+    const stars = starsFor(moveCount, par);
+    showWinModal(elapsedMs, stars);
 
     const prevBest = readBestScore(levelCode);
     if (prevBest === null || moveCount < prevBest) {
@@ -2034,15 +2512,14 @@ function startSolverMode(level, {
     }
     bestScoreEl.hidden = false;
 
-    if (onWin) onWin({ moves: moveCount, deaths: deathCount, elapsedMs });
+    if (onWin) onWin({ moves: moveCount, deaths: deathCount, elapsedMs, stars });
   }
 
-  function handleKeydown(e) {
+  // Every way of moving (keys, swipes, the D-pad) comes through here: one
+  // call is one attempted move of one tile in direction (dx, dy). Ignored —
+  // not queued — while the last move is still animating.
+  function tryMove(dx, dy) {
     if (won || !winModalEl.hidden) return;
-
-    const delta = KEY_DELTAS[e.key];
-    if (!delta) return;
-    e.preventDefault();
     if (Date.now() < inputLockedUntil) return;
 
     // Catch the world up first so the move is judged against the hazards
@@ -2055,9 +2532,9 @@ function startSolverMode(level, {
       return;
     }
 
-    const [dx, dy] = delta;
     const move = resolveMove(ctx, playerPos[0], playerPos[1], dx, dy, processedTick, states);
     if (!move) {
+      playSound('bump');
       render();
       return;
     }
@@ -2070,29 +2547,28 @@ function startSolverMode(level, {
     const endIdx = move.death ? move.death.idx : move.final;
     playerPos = [endIdx % level.size, Math.floor(endIdx / level.size)];
 
-    // A multi-tile move (ice, current, mushroom, portal) glides the player
-    // along its path. Whatever happens at the end — dying, winning — waits
-    // until the glide actually gets there, and input is locked until then.
-    let settleMs = 0;
-    if (move.path.length > 1 || move.hops.length) {
-      settleMs = slideTimeline(level.size, fromIdx, move.path, move.hops).durationMs;
-      slide = { fromIdx, path: move.path, hops: move.hops, startedAt: Date.now(), durationMs: settleMs };
-      inputLockedUntil = Date.now() + settleMs;
-      setAnim('slide', settleMs);
-    } else {
-      slide = null;
-      setAnim('walk');
-    }
+    // Every move glides the player along its path — one step, or a whole
+    // slide/push/bounce/warp. Whatever happens at the end — dying, winning —
+    // waits until the glide actually gets there, and input is ignored until
+    // then.
+    const timeline = slideTimeline(level.size, fromIdx, move.path, move.hops);
+    const settleMs = timeline.durationMs;
+    const multiTile = !timeline.walk;
+    slide = { fromIdx, path: move.path, hops: move.hops, startedAt: Date.now(), durationMs: settleMs };
+    inputLockedUntil = Date.now() + settleMs;
+    const pose = travelPoseFor(ctx.tiles, move);
+    if (pose === 'walk') setAnim('walk');
+    else setAnim(pose, settleMs);
+    playSound(pose === 'walk' ? 'step' : pose);
     const afterSlide = (fn) => {
       clearTimeout(outcomeTimer);
-      if (settleMs) outcomeTimer = setTimeout(fn, settleMs);
-      else fn();
+      outcomeTimer = setTimeout(fn, settleMs);
     };
 
     if (move.death) {
       const { label, idx } = move.death;
       dying = true;
-      if (settleMs) render();
+      render();
       afterSlide(() => {
         killPlayer(label, idx);
         render();
@@ -2100,11 +2576,28 @@ function startSolverMode(level, {
       return;
     }
 
+    const wasLocked = isExitLocked(ctx, states);
     states = applyMoveToObjects(states, move);
+    const nowLocked = isExitLocked(ctx, states);
+    move.flippedLevers.forEach((slot) => {
+      const { idx } = ctx.levers.find((lever) => lever.slot === slot);
+      pendingFlashes.push({ idx, className: 'lever-flipped' });
+    });
+    move.path.forEach((idx) => {
+      if (ctx.tiles[idx] === 'plate') pendingFlashes.push({ idx, className: 'lever-flipped' });
+    });
+    if (wasLocked && !nowLocked) pendingFlashes.push({ idx: level.goal[1] * level.size + level.goal[0], className: 'goal-unlocked' });
+    // Each thin-ice tile left behind caves in as the player leaves it.
+    move.brokenIce.forEach((slot) => {
+      const { idx } = ctx.thinIce.find((ice) => ice.slot === slot);
+      const stop = timeline.stops.find((st) => st.idx === idx);
+      collapses.push({ idx, at: Date.now() + (stop ? stop.t : 0) });
+    });
     // Frostbite counts from when the player visibly lands (a long slide
     // shouldn't eat into the time they have to step off again) — only ever
-    // more lenient than solveBFS, never less.
-    arrivedTick = processedTick + Math.ceil(settleMs / HAZARD_TICK_MS);
+    // more lenient than solveBFS, never less. A single step counts from the
+    // keypress, as it always has.
+    arrivedTick = processedTick + (multiTile ? Math.ceil(settleMs / HAZARD_TICK_MS) : 0);
     if (move.grabbed) heldUntilTick = processedTick + 1 + VINE_HOLD_TICKS;
 
     if (move.won) {
@@ -2121,8 +2614,25 @@ function startSolverMode(level, {
       return;
     }
 
+    if (move.flippedLevers.length) playSound('lever');
+    if (move.pressedPlates.length) playSound('plate');
+    if (wasLocked !== nowLocked) playSound(nowLocked ? 'lock' : 'unlock');
+    if (move.grabbed) playSound('grab');
+    if (move.litBombs.length) playSound('fuse');
+    if (move.litIcicles.length) playSound('icicle-crack');
+    if (move.brokenIce.length) playSound('crack');
+
     if (move.grabbed) {
       setMessage('🌿 Grabbed by vines! You’re stuck for a moment.', 'invalid');
+    } else if (move.pressedPlates.length && !move.flippedLevers.length) {
+      setMessage(gatesOpen(ctx, states)
+        ? '⚙ Plate pressed — every portcullis grinds open.'
+        : '⚙ Plate pressed — every portcullis slams shut.', '');
+    } else if (move.flippedLevers.length) {
+      const total = ctx.levers.length;
+      if (!nowLocked) setMessage('🔓 Every lever is on — the exit is open!', 'valid');
+      else if (!wasLocked) setMessage('🔒 That lever flipped back off — the exit is locked again.', 'invalid');
+      else setMessage(`Lever flipped: ${leversOn(ctx, states)} of ${total} on.`, '');
     } else if (move.litBombs.length) {
       setMessage('💣 Fuse lit — get clear!', 'invalid');
     } else if (move.litIcicles.length) {
@@ -2140,12 +2650,58 @@ function startSolverMode(level, {
     }
 
     render();
-    // Drop out of the skid pose the moment the glide lands, rather than on
-    // the next hazard tick.
-    if (settleMs) afterSlide(render);
+    // Drop out of the travel pose and take up the ground's stance the
+    // moment the glide lands, rather than on the next hazard tick.
+    afterSlide(render);
+  }
+
+  function handleKeydown(e) {
+    const delta = KEY_DELTAS[e.key];
+    if (!delta) return;
+    e.preventDefault();
+    tryMove(...delta);
+  }
+
+  // Touch: a swipe anywhere on the grid moves one tile its way (whichever
+  // axis it went further along). Starting on the grid also stops the page
+  // scrolling or zooming under the player's thumb.
+  let swipeFrom = null;
+  function handleTouchStart(e) {
+    if (e.touches.length !== 1) {
+      swipeFrom = null;
+      return;
+    }
+    swipeFrom = [e.touches[0].clientX, e.touches[0].clientY];
+    e.preventDefault();
+  }
+  function handleTouchMove(e) {
+    e.preventDefault();
+  }
+  function handleTouchEnd(e) {
+    if (!swipeFrom) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - swipeFrom[0];
+    const dy = touch.clientY - swipeFrom[1];
+    swipeFrom = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_MIN_PX) return;
+    if (Math.abs(dx) > Math.abs(dy)) tryMove(Math.sign(dx), 0);
+    else tryMove(0, Math.sign(dy));
+  }
+
+  // The on-screen D-pad (shown on touch screens only — see #dpad in
+  // style.css): each press is one move.
+  function handleDpad(e) {
+    const btn = e.target.closest('[data-dir]');
+    if (!btn) return;
+    e.preventDefault();
+    tryMove(...DIRECTION_DELTAS[btn.dataset.dir]);
   }
 
   document.addEventListener('keydown', handleKeydown);
+  grid.addEventListener('touchstart', handleTouchStart, { passive: false });
+  grid.addEventListener('touchmove', handleTouchMove, { passive: false });
+  grid.addEventListener('touchend', handleTouchEnd);
+  dpadEl.addEventListener('pointerdown', handleDpad);
   solverResetBtn.addEventListener('click', resetRun);
   winModalResetBtn.addEventListener('click', resetRun);
 
@@ -2153,6 +2709,13 @@ function startSolverMode(level, {
 
   return function stop() {
     document.removeEventListener('keydown', handleKeydown);
+    grid.removeEventListener('touchstart', handleTouchStart);
+    grid.removeEventListener('touchmove', handleTouchMove);
+    grid.removeEventListener('touchend', handleTouchEnd);
+    dpadEl.removeEventListener('pointerdown', handleDpad);
+    dpadEl.hidden = true;
+    document.body.classList.remove('playing');
+    setMusic('home');
     solverResetBtn.removeEventListener('click', resetRun);
     winModalResetBtn.removeEventListener('click', resetRun);
     clearInterval(timerId);
@@ -2189,6 +2752,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const bestScoreEl = $('best-score');
   const winModalEl = $('win-modal');
   const winModalStatsEl = $('win-modal-stats');
+  const winModalStarsEl = $('win-modal-stars');
+  const dpadEl = $('dpad');
+  const muteBtn = $('mute-btn');
   const winModalUnlockEl = $('win-modal-unlock');
   const winModalResetBtn = $('win-modal-reset-btn');
   const winModalNextBtn = $('win-modal-next-btn');
@@ -2240,6 +2806,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const trapIntroModal = $('trap-intro-modal');
   const trapIntroListEl = $('trap-intro-list');
   const trapIntroStartBtn = $('trap-intro-start-btn');
+  const cutsceneEl = $('cutscene');
+  const badgeAwardEl = $('badge-award');
+  const storyBtn = $('story-btn');
+  const storyModal = $('story-modal');
+  const storyListEl = $('story-list');
 
   const titleScreenEl = $('title-screen');
   const titleHowtoModal = $('title-howto-modal');
@@ -2307,7 +2878,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return {
       grid, controlsEl, solverInfoEl, solverMessageEl, solverStatsEl,
       moveCountEl, deathCountEl, elapsedTimeEl, timeLabelEl, solverResetBtn,
-      bestScoreEl, winModalEl, winModalStatsEl, winModalResetBtn,
+      bestScoreEl, winModalEl, winModalStatsEl, winModalStarsEl, winModalResetBtn, dpadEl,
     };
   }
 
@@ -2357,7 +2928,7 @@ document.addEventListener('DOMContentLoaded', () => {
       builderPanelToggleBtn, builderPanelEl, dailyBuilderBarEl, dailyHubEl,
       solverInfoEl, solverStatsEl, dailySolverBackBtn, campaignBackBtn, winModalEl,
       winModalDailyBackBtn, winModalNextBtn, winModalLevelsBtn, winModalUnlockEl,
-      bestScoreEl, levelHeadingEl, themeSelectEl, levelSelectEl, trapIntroModal,
+      bestScoreEl, levelHeadingEl, themeSelectEl, levelSelectEl, trapIntroModal, storyModal,
     ].forEach((el) => { el.hidden = true; });
     builderToggleBtn.hidden = false;
     dailyToggleBtn.hidden = false;
@@ -2395,7 +2966,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   homeBtn.addEventListener('click', showTitleScreen);
 
-  $('title-play-btn').addEventListener('click', () => openThemeSelect());
+  // Sound and music on/off, remembered on this device (see sounds.js).
+  function renderMuteBtn() {
+    const muted = isMuted();
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-pressed', String(muted));
+    muteBtn.setAttribute('aria-label', muted ? 'Unmute sound and music' : 'Mute sound and music');
+  }
+  muteBtn.addEventListener('click', () => {
+    setMuted(!isMuted());
+    renderMuteBtn();
+  });
+  renderMuteBtn();
+  // The menus' tune; each room switches to its world's (see startSolverMode).
+  setMusic('home');
+
+  // A new game opens with the prologue (see shouldPlayOpening in story.js),
+  // over the world select it then leaves the player on.
+  $('title-play-btn').addEventListener('click', () => {
+    openThemeSelect();
+    if (shouldPlayOpening(loadProgress())) playCutscene('opening', cutsceneEl);
+  });
   $('title-daily-btn').addEventListener('click', () => enterDailyHub());
   $('title-builder-btn').addEventListener('click', () => enterCreativeMode());
   $('title-howto-btn').addEventListener('click', () => { titleHowtoModal.hidden = false; });
@@ -2435,9 +3026,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let fraction;
     if (unlocked) {
       fraction = done / LEVELS_PER_THEME;
+      const stars = `★ ${themeStars(progress, theme)} / ${LEVELS_PER_THEME * 3}`;
       themeStatusEl.textContent = done === LEVELS_PER_THEME
-        ? `👑 All ${LEVELS_PER_THEME} levels complete`
-        : `${done} / ${LEVELS_PER_THEME} levels complete`;
+        ? `👑 All ${LEVELS_PER_THEME} levels complete · ${stars}`
+        : `${done} / ${LEVELS_PER_THEME} levels complete · ${stars}`;
+    } else if (BONUS_THEMES.includes(theme)) {
+      // The bonus world: every level of every other world, with where each
+      // one stands (the status line wraps — white-space: pre-line).
+      const { done: bonusDone, total } = bonusProgress(progress);
+      fraction = bonusDone / total;
+      const perWorld = MAIN_THEMES
+        .map((t) => `${THEME_INFO[t].short} ${completedCount(progress, t)}/${themeLevels(t).length}`)
+        .join(' · ');
+      themeStatusEl.textContent =
+        `🔒 Bonus world — beat every other level to open\n${bonusDone} / ${total}  ·  ${perWorld}`;
     } else {
       const prev = previousTheme(theme);
       const prevDone = Math.min(completedCount(progress, prev), UNLOCK_REQUIREMENT);
@@ -2480,7 +3082,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Arrow keys / A-D flip through themes; Enter opens the levels. Only while
   // the theme screen is up, and never while a modal sits on top of it.
   document.addEventListener('keydown', (e) => {
-    if (themeSelectEl.hidden || !titleHowtoModal.hidden || !titleCreditsModal.hidden) return;
+    if (themeSelectEl.hidden || !titleHowtoModal.hidden || !titleCreditsModal.hidden || !storyModal.hidden) return;
     if (['ArrowLeft', 'a', 'A'].includes(e.key)) {
       e.preventDefault();
       stepTheme(-1);
@@ -2509,6 +3111,35 @@ document.addEventListener('DOMContentLoaded', () => {
     renderThemeSelect();
   });
 
+  // Story: every cutscene, to rewatch. One opens once its world's last level
+  // is beaten (isStoryUnlocked in story.js); the rest show what opens them.
+  function renderStoryList() {
+    const progress = loadProgress();
+    storyListEl.innerHTML = '';
+    STORY_SCENES.forEach((scene) => {
+      const open = isStoryUnlocked(progress, scene.id);
+      const item = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pixel-btn';
+      btn.disabled = !open;
+      btn.textContent = open ? `▶ ${scene.label}: ${scene.title}` : `🔒 ${scene.label}`;
+      const hint = document.createElement('span');
+      hint.className = 'story-hint';
+      if (!open) hint.textContent = `Beat the last level of ${THEME_INFO[scene.after].name}`;
+      else if (!isStorySeen(progress, scene.id)) hint.textContent = 'Not watched yet';
+      if (hint.textContent) btn.appendChild(hint);
+      btn.addEventListener('click', () => playCutscene(scene.id, cutsceneEl, { onDone: renderStoryList }));
+      item.appendChild(btn);
+      storyListEl.appendChild(item);
+    });
+  }
+  storyBtn.addEventListener('click', () => {
+    renderStoryList();
+    storyModal.hidden = false;
+  });
+  $('story-close-btn').addEventListener('click', () => { storyModal.hidden = true; });
+
   // --- Level select -------------------------------------------------------------
 
   let levelSelectTheme = 'lava';
@@ -2527,9 +3158,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const theme = levelSelectTheme;
     const progress = loadProgress();
     const levels = themeLevels(theme);
-    const next = THEMES[THEMES.indexOf(theme) + 1];
+    const next = nextMainTheme(theme);
     levelSelectTitleEl.textContent = THEME_INFO[theme].name;
     levelSelectSubtitleEl.textContent = `${completedCount(progress, theme)} / ${levels.length} complete` +
+      ` · ★ ${themeStars(progress, theme)} / ${levels.length * 3}` +
       (next ? ` · beat ${UNLOCK_REQUIREMENT} to unlock ${THEME_INFO[next].name}` : '');
 
     levelGridEl.innerHTML = '';
@@ -2552,13 +3184,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const tagText = [];
       if (def.timeLimit) tagText.push(`⏱ ${def.timeLimit}s`);
       if (n + 1 === UNLOCK_REQUIREMENT && next) tagText.push('🔑');
-      if (record) tagText.push(`✓ ${record.moves} moves`);
+      // A record can be missing its stats (a cloud save repaired by hand).
+      if (record) tagText.push(Number.isFinite(record.moves) ? `✓ ${record.moves} moves` : '✓');
       tags.textContent = tagText.join(' · ');
-      plate.append(num, name, tags);
+      const stars = levelStars(progress, def.id);
+      const starsEl = document.createElement('span');
+      starsEl.className = `level-plate-stars${stars ? '' : ' none'}`;
+      // A level beaten before stars existed shows none until it's replayed.
+      starsEl.textContent = record ? starText(stars) : '';
+      plate.append(num, name, starsEl, tags);
 
       plate.title = def.idea;
       plate.setAttribute('aria-label',
-        `Level ${n + 1}: ${def.name}${def.timeLimit ? ', timed' : ''}${record ? ', completed' : ''}${open ? '' : ', locked'}`);
+        `Level ${n + 1}: ${def.name}${def.timeLimit ? ', timed' : ''}${record ? ', completed' : ''}` +
+        `${stars ? `, ${stars} of 3 stars` : ''}${open ? '' : ', locked'}`);
       plate.addEventListener('click', () => startCampaignLevel(def.id));
       levelGridEl.appendChild(plate);
     });
@@ -2626,6 +3265,7 @@ document.addEventListener('DOMContentLoaded', () => {
       activeSolverStop = startSolverMode(level, {
         ...solverDom(),
         levelCode: `campaign-${id}`,
+        par: campaignPar(id),
         onWin: (result) => handleCampaignWin(id, result),
       });
       // The level heading and its one-line hint replace the generic
@@ -2642,24 +3282,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Records the win and fills in the win modal's campaign extras: what just
   // unlocked, and whether there's a next level to go to.
-  function handleCampaignWin(id, { moves, deaths, elapsedMs }) {
+  function handleCampaignWin(id, { moves, deaths, elapsedMs, stars }) {
     const def = levelDef(id);
     const before = loadProgress();
-    const after = recordLevelComplete(id, { moves, timeMs: elapsedMs, deaths });
+    const after = recordLevelComplete(id, { moves, timeMs: elapsedMs, deaths, stars });
     const levels = themeLevels(def.theme);
     const n = levelNumber(id);
 
     const notes = [];
-    const nextTheme = THEMES[THEMES.indexOf(def.theme) + 1];
-    if (nextTheme && !isThemeUnlocked(before, nextTheme) && isThemeUnlocked(after, nextTheme)) {
-      notes.push(`🔓 ${THEME_INFO[nextTheme].name} unlocked!`);
-    }
+    // Whatever this win opened: the next world in the chain, or — with the
+    // very last main-world level — the bonus castle.
+    THEMES.forEach((t) => {
+      if (!isThemeUnlocked(before, t) && isThemeUnlocked(after, t)) {
+        notes.push(BONUS_THEMES.includes(t)
+          ? `🏰 Every world beaten — the ${THEME_INFO[t].name} has opened!`
+          : `🔓 ${THEME_INFO[t].name} unlocked!`);
+      }
+    });
     if (completedCount(before, def.theme) < levels.length && completedCount(after, def.theme) === levels.length) {
       notes.push(`👑 Every ${THEME_INFO[def.theme].short} level complete!`);
     }
     winModalUnlockEl.textContent = notes.join(' ');
     winModalUnlockEl.hidden = notes.length === 0;
     winModalNextBtn.hidden = n >= levels.length;
+
+    // The world's cutscene, the first time its last level falls, then its
+    // badge (badges.js) if this win finished the world: after a beat, so
+    // the win lands first, and over the win card (still there when they
+    // end). The cutscene waits for no one — it's skipped if the player has
+    // already left the room — but the badge always shows.
+    const scene = storySceneAfterLevel(id);
+    const sceneDue = scene && !isStorySeen(after, scene);
+    const badge = badgeEarnedByWin(before, after);
+    if (sceneDue || badge) {
+      setTimeout(() => {
+        const award = () => { if (badge) showBadgeAward(badge, badgeAwardEl); };
+        if (sceneDue && currentCampaignId === id && !winModalEl.hidden && !isCutscenePlaying()) {
+          playCutscene(scene, cutsceneEl, { onDone: award });
+        } else {
+          award();
+        }
+      }, STORY_AFTER_WIN_MS);
+    }
   }
 
   winModalNextBtn.addEventListener('click', () => {
