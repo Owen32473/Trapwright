@@ -1116,6 +1116,20 @@ function starText(stars) {
   return '★'.repeat(stars) + '☆'.repeat(3 - stars);
 }
 
+// Timed rooms. The fastest run takes the bot's turns at one hazard tick
+// each. The tightest limit Creative Mode accepts is the campaign's hardest
+// rule (the castle's: 1.5x that plus 3 seconds), so a player's timed room is
+// never tighter than any in the game. Both are null for an unsolvable room.
+function fastestRunSeconds(level) {
+  const { moves } = solveBFS(level);
+  return moves === null ? null : (moves * HAZARD_TICK_MS) / 1000;
+}
+
+function minFairTimeLimit(level) {
+  const fastest = fastestRunSeconds(level);
+  return fastest === null ? null : Math.ceil(fastest * 1.5 + 3);
+}
+
 function isSolvable(level) {
   return solveBFS(level).solvable;
 }
@@ -2762,6 +2776,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const builderPanelToggleBtn = $('builder-panel-toggle');
   const builderPanelEl = $('builder-panel');
   const creativeThemePickerEl = $('creative-theme-picker');
+  const creativeRoomFieldsEl = $('creative-room-fields');
+  const roomNameInput = $('room-name-input');
+  const timeLimitSelect = $('time-limit-select');
+  const timeLimitHintEl = $('time-limit-hint');
+  const saveRoomBtn = $('save-room-btn');
+  const myRoomsBtn = $('my-rooms-btn');
+  const roomStatusEl = $('room-status');
+  const roomsModal = $('rooms-modal');
+  const roomsListEl = $('rooms-list');
+  const roomsCountEl = $('rooms-count');
+  const roomsEmptyEl = $('rooms-empty');
   const paletteListEl = $('palette-list');
   const trashCanEl = $('trash-can');
   const clearAllBtn = $('clear-all-btn');
@@ -2857,6 +2882,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeBuilderSize = BUILDER_GRID_SIZE;
   let activeTrapBudget = TRAP_BUDGET;
 
+  // The My Rooms id of the room being built (null until it's first saved;
+  // after that, every edit saves it — see roomEdited).
+  let currentRoomId = null;
+
   // Set while a Daily Puzzle challenge (solver or builder) is in progress.
   let currentDailyChallenge = null;
   // The campaign level being played, if any.
@@ -2915,6 +2944,7 @@ document.addEventListener('DOMContentLoaded', () => {
     stopSolver();
     builderMode = false;
     builderLevel = null;
+    currentRoomId = null;
     currentDailyChallenge = null;
     currentCampaignId = null;
     activeBuilderSize = BUILDER_GRID_SIZE;
@@ -2929,6 +2959,7 @@ document.addEventListener('DOMContentLoaded', () => {
       solverInfoEl, solverStatsEl, dailySolverBackBtn, campaignBackBtn, winModalEl,
       winModalDailyBackBtn, winModalNextBtn, winModalLevelsBtn, winModalUnlockEl,
       bestScoreEl, levelHeadingEl, themeSelectEl, levelSelectEl, trapIntroModal, storyModal,
+      saveRoomBtn, myRoomsBtn, roomStatusEl, roomsModal,
     ].forEach((el) => { el.hidden = true; });
     builderToggleBtn.hidden = false;
     dailyToggleBtn.hidden = false;
@@ -3372,6 +3403,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (draggedPaletteType && canPlaceTileType(builderLevel, x, y, draggedPaletteType, activeTrapBudget)) {
         setTileType(builderLevel, x, y, draggedPaletteType);
         renderBuilder();
+        roomEdited();
       }
       resetDragState();
     },
@@ -3386,6 +3418,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!rotated) return;
       setTileType(builderLevel, x, y, rotated);
       renderBuilder();
+      roomEdited();
       const tileEl = grid.children[y * builderLevel.size + x];
       if (tileEl) tileEl.focus();
     },
@@ -3475,6 +3508,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderBuilderPalette();
       renderBuilder();
       shareOutputEl.hidden = true;
+      roomEdited();
     });
   });
 
@@ -3500,6 +3534,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (draggedFromTile) {
       setTileType(builderLevel, draggedFromTile.x, draggedFromTile.y, 'empty');
       renderBuilder();
+      roomEdited();
     }
     resetDragState();
   });
@@ -3521,7 +3556,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   clearAllConfirmBtn.addEventListener('click', () => {
     builderLevel = { ...createEmptyLevel(activeBuilderSize), theme: levelTheme(builderLevel) };
+    const timeLimit = cleanTimeLimit(timeLimitSelect.value);
+    if (timeLimit && !currentDailyChallenge) builderLevel.timeLimit = timeLimit;
     renderBuilder();
+    roomEdited();
     validateResultEl.textContent = '';
     validateResultEl.className = '';
     shareOutputEl.hidden = true;
@@ -3556,15 +3594,193 @@ document.addEventListener('DOMContentLoaded', () => {
     renderBuilder();
   }
 
-  function enterCreativeMode() {
+  // Opens Creative Mode on a new, unsaved room — or, given one of My Rooms,
+  // on that room.
+  function enterCreativeMode(room = null) {
     hideAllModes();
     hideTitleScreen();
-    builderLevel = { ...createEmptyLevel(BUILDER_GRID_SIZE), theme: creativeTheme };
+    if (room) {
+      builderLevel = cleanDraftLevel(room.level);
+      creativeTheme = levelTheme(builderLevel);
+      currentRoomId = room.id;
+    } else {
+      builderLevel = { ...createEmptyLevel(BUILDER_GRID_SIZE), theme: creativeTheme };
+    }
+    roomNameInput.value = room ? room.name : '';
     builderToggleBtn.textContent = 'Exit Creative Mode';
     shareBtn.hidden = false;
+    saveRoomBtn.hidden = false;
+    myRoomsBtn.hidden = false;
     creativeThemePickerEl.hidden = false;
+    creativeRoomFieldsEl.hidden = false;
+    renderTimeLimitSelect();
     showBuilderUI();
+    renderRoomStatus(room ? 'Saved ✓' : 'Not saved yet');
   }
+
+  // --- My Rooms (see rooms.js) ---------------------------------------------------
+
+  function renderRoomStatus(text) {
+    roomStatusEl.textContent = text;
+    roomStatusEl.hidden = false;
+  }
+
+  // Once a room has been saved, every change to it saves straight away.
+  function roomEdited() {
+    if (!builderMode || currentDailyChallenge) return;
+    if (builderLevel.timeLimit) renderTimeLimitHint();
+    if (!currentRoomId) {
+      renderRoomStatus('Not saved yet');
+      return;
+    }
+    if (putRoom(currentRoomId, roomNameInput.value, builderLevel)) renderRoomStatus('Saved ✓');
+    else renderRoomStatus('Couldn’t save this room');
+  }
+
+  saveRoomBtn.addEventListener('click', () => {
+    if (!builderMode || currentDailyChallenge) return;
+    const id = currentRoomId || newRoomId();
+    if (!putRoom(id, roomNameInput.value, builderLevel)) {
+      renderRoomStatus(`My Rooms is full (${MAX_ROOMS}). Delete one to save this.`);
+      return;
+    }
+    currentRoomId = id;
+    roomNameInput.value = cleanRoomName(roomNameInput.value);
+    renderRoomStatus('Saved ✓ — changes now save as you build');
+  });
+
+  roomNameInput.addEventListener('input', roomEdited);
+  roomNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveRoomBtn.click();
+  });
+
+  // A small, non-interactive picture of a room (the same renderer as the
+  // world select's preview).
+  function roomThumb(level) {
+    const thumb = document.createElement('div');
+    thumb.className = 'room-thumb';
+    thumb.setAttribute('aria-hidden', 'true');
+    renderLevel(level, thumb);
+    return thumb;
+  }
+
+  function roomMeta(room) {
+    const { level } = room;
+    const parts = [THEME_INFO[levelTheme(level)].short, `${level.size}×${level.size}`];
+    if (level.timeLimit) parts.push(`⏱ ${level.timeLimit}s`);
+    if (!level.start || !level.goal) parts.push('unfinished');
+    parts.push(new Date(room.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+    return parts.join(' · ');
+  }
+
+  function renderRoomsList() {
+    const list = roomList(loadRooms());
+    roomsCountEl.textContent = `${list.length} / ${MAX_ROOMS} rooms`;
+    roomsEmptyEl.hidden = list.length > 0;
+    roomsListEl.innerHTML = '';
+    list.forEach((room) => {
+      const item = document.createElement('li');
+      item.className = `room-row${room.id === currentRoomId ? ' current' : ''}`;
+      const info = document.createElement('div');
+      info.className = 'room-info';
+      const name = document.createElement('strong');
+      name.textContent = room.name;
+      const meta = document.createElement('span');
+      meta.className = 'room-meta';
+      meta.textContent = roomMeta(room);
+      info.append(name, meta);
+
+      const actions = document.createElement('div');
+      actions.className = 'room-actions';
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'pixel-btn';
+      editBtn.textContent = 'Edit';
+      editBtn.setAttribute('aria-label', `Edit ${room.name}`);
+      editBtn.addEventListener('click', () => enterCreativeMode(room));
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'text-btn room-delete';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.setAttribute('aria-label', `Delete ${room.name}`);
+      // Two steps, like Clear All: the first click asks, the second deletes.
+      deleteBtn.addEventListener('click', () => {
+        if (!deleteBtn.classList.contains('confirming')) {
+          deleteBtn.classList.add('confirming');
+          deleteBtn.textContent = 'Really delete?';
+          return;
+        }
+        deleteRoom(room.id);
+        if (room.id === currentRoomId) {
+          currentRoomId = null;
+          renderRoomStatus('Not saved yet');
+        }
+        renderRoomsList();
+      });
+      actions.append(editBtn, deleteBtn);
+      item.append(roomThumb(room.level), info, actions);
+      roomsListEl.appendChild(item);
+    });
+  }
+
+  myRoomsBtn.addEventListener('click', () => {
+    renderRoomsList();
+    roomsModal.hidden = false;
+  });
+  $('rooms-close-btn').addEventListener('click', () => { roomsModal.hidden = true; });
+  $('rooms-new-btn').addEventListener('click', () => enterCreativeMode());
+
+  // --- Time limit ------------------------------------------------------------------
+
+  function renderTimeLimitSelect() {
+    const current = cleanTimeLimit(builderLevel.timeLimit);
+    const choices = ROOM_TIME_LIMITS.includes(current) ? ROOM_TIME_LIMITS : [...ROOM_TIME_LIMITS, current].sort((a, b) => a - b);
+    timeLimitSelect.innerHTML = '';
+    choices.forEach((seconds) => {
+      const option = document.createElement('option');
+      option.value = String(seconds);
+      option.textContent = seconds ? `${seconds} seconds` : 'Off';
+      timeLimitSelect.appendChild(option);
+    });
+    timeLimitSelect.value = String(current);
+    renderTimeLimitHint();
+  }
+
+  // Under the picker: how fast the room can be beaten, and whether the
+  // limit is fair (see minFairTimeLimit).
+  function renderTimeLimitHint() {
+    const limit = cleanTimeLimit(builderLevel.timeLimit);
+    timeLimitHintEl.className = '';
+    if (!limit) {
+      timeLimitHintEl.textContent = 'Set a limit to make this a timed room: the run restarts when the clock hits zero.';
+      return;
+    }
+    const verdict = timeLimitVerdict(builderLevel);
+    timeLimitHintEl.textContent = verdict.text;
+    timeLimitHintEl.className = verdict.ok ? 'valid' : 'invalid';
+  }
+
+  // Whether a timed room's limit is fair, in words. ok is false when the
+  // room can't be judged yet or the limit is too tight.
+  function timeLimitVerdict(level) {
+    const limit = cleanTimeLimit(level.timeLimit);
+    if (!level.start || !level.goal) return { ok: false, text: 'Place a start and a goal to check the limit.' };
+    const fastest = fastestRunSeconds(level);
+    if (fastest === null) return { ok: false, text: 'Make the room solvable to check the limit.' };
+    const fair = Math.ceil(fastest * 1.5 + 3);
+    return limit >= fair
+      ? { ok: true, text: `Fastest possible run: ${fastest}s. A ${limit}s limit is fair.` }
+      : { ok: false, text: `Too tight: the fastest possible run takes ${fastest}s. Allow at least ${fair}s.` };
+  }
+
+  timeLimitSelect.addEventListener('change', () => {
+    const limit = cleanTimeLimit(timeLimitSelect.value);
+    if (limit) builderLevel.timeLimit = limit;
+    else delete builderLevel.timeLimit;
+    renderTimeLimitHint();
+    shareOutputEl.hidden = true;
+    roomEdited();
+  });
 
   builderToggleBtn.addEventListener('click', () => {
     if (builderMode && !currentDailyChallenge) showTitleScreen();
@@ -3583,11 +3799,23 @@ document.addEventListener('DOMContentLoaded', () => {
       ? 'Solvable ✅ — there is a path from start to goal.'
       : 'Not solvable ❌ — no path from start to goal.';
     validateResultEl.className = solvable ? 'valid' : 'invalid';
+    if (solvable && builderLevel.timeLimit) {
+      const verdict = timeLimitVerdict(builderLevel);
+      validateResultEl.textContent = verdict.ok ? `Solvable ✅ — ${verdict.text}` : `Solvable, but the time limit is ❌ ${verdict.text}`;
+      validateResultEl.className = verdict.ok ? 'valid' : 'invalid';
+    }
+    if (!currentDailyChallenge) renderTimeLimitHint();
   });
 
   shareBtn.addEventListener('click', () => {
     if (!builderLevel.start || !builderLevel.goal || !isSolvable(builderLevel)) {
       validateResultEl.textContent = "Fix the level so it's solvable before sharing.";
+      validateResultEl.className = 'invalid';
+      shareOutputEl.hidden = true;
+      return;
+    }
+    if (builderLevel.timeLimit && !timeLimitVerdict(builderLevel).ok) {
+      validateResultEl.textContent = `Fix the time limit before sharing. ${timeLimitVerdict(builderLevel).text}`;
       validateResultEl.className = 'invalid';
       shareOutputEl.hidden = true;
       return;
@@ -3600,7 +3828,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     shareLinkInput.value = url;
     shareOutputEl.hidden = false;
-    validateResultEl.textContent = 'Solvable ✅ — link ready below.';
+    validateResultEl.textContent = builderLevel.timeLimit
+      ? `Solvable ✅ — link ready below (⏱ ${builderLevel.timeLimit}s timed room).`
+      : 'Solvable ✅ — link ready below.';
     validateResultEl.className = 'valid';
   });
 
@@ -3709,6 +3939,7 @@ document.addEventListener('DOMContentLoaded', () => {
     builderToggleBtn.hidden = true;
     dailyToggleBtn.hidden = true;
     creativeThemePickerEl.hidden = true;
+    creativeRoomFieldsEl.hidden = true;
 
     dailyBuilderBarEl.hidden = false;
     dailyBuilderTargetEl.textContent =
@@ -3786,6 +4017,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       sharedLevel = decodeLevel(sharedParam);
       if (!isValidLevel(sharedLevel)) sharedLevel = null;
+      // A timed room's limit comes from the link, so only a sane one counts.
+      else if (cleanTimeLimit(sharedLevel.timeLimit)) sharedLevel.timeLimit = cleanTimeLimit(sharedLevel.timeLimit);
+      else delete sharedLevel.timeLimit;
     } catch (e) {
       sharedLevel = null;
     }

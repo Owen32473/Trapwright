@@ -62,6 +62,10 @@ story.js     - the story: its cutscenes as data (STORY_SCENES), when each
 badges.js    - chapter badges: which are earned, the account panel's badge
                list and the award animation (see Chapter badges below).
                Loaded after story.js.
+rooms.js     - saved Creative Mode rooms (My Rooms): storage, clean-up and
+               merge rules, and the time-limit choices (see My Rooms and
+               Time limits below). Loaded after badges.js, before
+               cloudsave.js.
 cloudsave.js - the player's whole save as one object: read/write/clear
                it in localStorage, and the rules for merging two copies
                (see Accounts and cloud saves below). No Firebase here, so
@@ -81,7 +85,7 @@ Play at Home.command - double-click to serve the game to devices on the
                home Wi-Fi (see Hosting below)
 favicon.svg  - browser-tab icon, linked from index.html
 tests.html   - minimal page that loads sprites.js + script.js + levels.js +
-               story.js + badges.js + cloudsave.js + tests.js, for running the sanity checks below
+               story.js + badges.js + rooms.js + cloudsave.js + tests.js, for running the sanity checks below
                in a browser console
 tests.js     - plain-assertion sanity checks for isSolvable()/solveBFS(),
                every trap's rules, the encodeLevel/decodeLevel round trip,
@@ -780,9 +784,9 @@ Entered from the title screen's "Creative Mode" button or the "Enter/Exit
 Creative Mode" button in `#controls` ([script.js](script.js)); exiting
 returns to the title screen. (Internal names — `builderMode`,
 `builderLevel`, `#builder-toggle`, `#builder-panel` — kept the old word.)
-Entering **always starts from a blank grid** (`createEmptyLevel(
-BUILDER_GRID_SIZE)` plus the last-picked `theme`); in-progress edits are
-discarded on exit (there's no persistence yet, see below).
+Entering starts from a blank, unsaved grid (`createEmptyLevel(
+BUILDER_GRID_SIZE)` plus the last-picked `theme`), or from one of My Rooms
+(see below). An unsaved room's edits are discarded on exit.
 
 **Every trap from every theme is available from the start**, whatever
 the player has unlocked in the campaign. The Lava / Ice / Grass switch at
@@ -790,6 +794,46 @@ the top of the panel (`#creative-theme-picker`) sets `builderLevel.theme`:
 the map's look, the page backdrop, and what shared traps are called in
 the palette (a turret is a "Frost Cannon" in an ice map). It never
 changes which traps exist or what they do.
+
+### My Rooms
+
+Saved rooms ([rooms.js](rooms.js)), up to `MAX_ROOMS` (50). The Blocks
+panel has a room name field (`#room-name-input`, up to 32 characters,
+"Untitled room" if blank) and `#controls` a **Save** button, a **My
+Rooms** button and a status line (`#room-status`). The first Save gives
+the room an id (`currentRoomId`); from then on every edit — a tile placed,
+rotated or trashed, Clear All, the look, the time limit, the name — saves
+it straight away (`roomEdited` → `putRoom`), so there's nothing to forget.
+My Rooms (`#rooms-modal`) lists them newest first, each with a thumbnail
+(`renderLevel` into `.room-thumb`), its look, size, time limit and date,
+an **Edit** button (opens it in Creative Mode) and a two-step **Delete**.
+**New Room** starts a blank one. None of this shows in a Daily Puzzle
+builder challenge.
+
+`localStorage['trapRoomCreativeRooms']` = `{ rooms: { [id]: { name,
+level, updatedAt } }, deleted: { [id]: deletedAt } }`. Rooms are part of
+the cloud save (`rooms` — see Accounts and cloud saves). A delete leaves
+its id and time behind so merging with a device that still has the room
+doesn't bring it back; merging keeps each room's newest edit, and an edit
+made after a delete wins over it (`mergeRooms`). Every level read from
+storage or the cloud is rebuilt to exactly a level's fields
+(`cleanDraftLevel`/`cleanRoomLevel`), so a save can't carry anything else
+into the game.
+
+### Time limits
+
+The Blocks panel's **⏱ Time limit** (`#time-limit-select`) makes a room a
+timed room: Off, or 10 to 180 seconds (`ROOM_TIME_LIMITS`), stored as
+`builderLevel.timeLimit` — the same field the campaign's timed rooms use,
+so solver mode counts it down and restarts the run at zero with no other
+changes. Under it, `#time-limit-hint` says whether the limit is fair: the
+fastest possible run is the bot's turns at one hazard tick each
+(`fastestRunSeconds`), and the tightest limit allowed is the castle's rule,
+1.5× that plus 3 seconds (`minFairTimeLimit`), so no player's room is
+tighter than the hardest in the game. Validate reports it; Share refuses
+a too-tight limit. The limit travels in the share link (it's part of the
+level's JSON), and a link's limit is only kept if it's whole seconds from 5
+to 600 (`cleanTimeLimit`); anything else plays untimed.
 
 ### Placing and rotating tiles
 
@@ -888,6 +932,12 @@ if either is missing).
   in order; replays keep the best stats; reset clears everything).
 - Themes: per-theme trap names, unknown theme -> lava, and a shared link
   keeps its theme through encode/decode.
+- My Rooms and time limits: half-built rooms save with tidied names;
+  malformed rooms are dropped; merging keeps each room's newest edit, keeps
+  deletes, lets a later edit bring a room back, and is order-independent;
+  rooms ride in the cloud save; putRoom/deleteRoom/the 50-room cap; only
+  sane time limits count; a share link keeps its limit; the fastest run
+  and fair-limit rules.
 - Badges: one per world with art; none at the start; earned only when
   every level of the world is beaten; the finishing win earns it (a replay
   doesn't); levels beaten on two devices add up to one.
@@ -1828,9 +1878,13 @@ Everything the game saves (`readLocalSave()` in
 [cloudsave.js](cloudsave.js)): campaign progress (`trapRoomProgress`,
 stars included — merging keeps the most stars — and the cutscenes seen,
 merged as a union),
-Daily Puzzle stats (`trapRoomDailyStats`), and every best score
-(`trapRoomBestScore:*`), plus the profile icon. Creative Mode rooms aren't
-saved anywhere yet, so they don't sync either.
+Daily Puzzle stats (`trapRoomDailyStats`), every best score
+(`trapRoomBestScore:*`) and My Rooms (`trapRoomCreativeRooms`, merged
+room by room — see My Rooms), plus the profile icon. A device running an
+older version of the game drops `rooms` from the saves it uploads, so
+taking the account's copy (on login, or when the tab comes back into
+view) merges rooms instead of replacing them (`takeCloudSave`): any this
+device still has go back up, and deletes still apply.
 
 Every function that writes one of those (`saveProgress`, `resetProgress`,
 `saveDailyStats`, `writeBestScore`) calls `notifySaveChanged()`
@@ -1952,12 +2006,10 @@ Pages sites are public).
 
 ## Not yet implemented (future sessions)
 
-- A time limit option in Creative Mode (the level format and solver mode
-  already support `timeLimit`; only campaign levels use it so far)
-- Level persistence (localStorage, export/import JSON, or the player's
-  account) — right now Creative Mode edits are lost on exiting it
-  or reloading the page (this includes Daily Puzzle builder challenges —
-  only the pass/fail *result* of a submission is persisted, never the
-  room itself)
+- Saving Daily Puzzle builder rooms — only the pass/fail *result* of a
+  submission is persisted, never the room itself (Creative Mode rooms save
+  to My Rooms)
+- Playing a saved room straight from My Rooms (today: Share it and open
+  the link)
 - A way to open a shared `?level=` room in Creative Mode (to remix it)
   — today a shared link can only be played

@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = readSyncState();
     const sameAccount = state.uid === signedIn.uid;
     let next;
-    if (sameAccount && !state.dirty) next = cloud; // nothing new here: the account's copy is newest
+    if (sameAccount && !state.dirty) next = takeCloudSave(readLocalSave(), cloud); // nothing new here: the account's copy is newest
     else if (state.uid && !sameAccount) next = cloud; // what's here belongs to a different account
     else next = mergeSaves(readLocalSave(), cloud, { campaignReset: sameAccount && state.campaignReset });
 
@@ -359,9 +359,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!views.profile.hidden) renderProfile();
       }
       const cloud = parseSave(data.save);
-      if (serializeSave(cloud) !== serializeSave(readLocalSave())) {
-        writeLocalSave(cloud);
+      const next = takeCloudSave(readLocalSave(), cloud);
+      if (serializeSave(next) !== serializeSave(readLocalSave())) {
+        writeLocalSave(next);
         refreshProgressViews();
+      }
+      // Rooms this device still had but the account had lost go back up.
+      if (serializeSave(next) !== serializeSave(cloud)) {
+        writeSyncState({ ...readSyncState(), dirty: true });
+        uploadNow();
       }
     } catch (err) {
       // offline: try again next time

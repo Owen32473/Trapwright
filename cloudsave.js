@@ -3,18 +3,19 @@
 // Cloud saves: the player's whole save as one object, read from and written
 // to localStorage, and the rules for merging two copies of it. No Firebase
 // here (account.js does the uploading and downloading), so tests.js can
-// check the merge rules on their own. Loaded after levels.js.
+// check the merge rules on their own. Loaded after rooms.js.
 //
-// A save is { progress, dailyStats, bestScores } — everything the game keeps
-// in localStorage: campaign progress and cutscenes seen (loadProgress in
-// levels.js), Daily
-// Puzzle stats (loadDailyStats in script.js), and best move counts per room
-// (readBestScore in script.js), as { [levelCode]: moves }.
+// A save is { progress, dailyStats, bestScores, rooms } — everything the
+// game keeps in localStorage: campaign progress and cutscenes seen
+// (loadProgress in levels.js), Daily Puzzle stats (loadDailyStats in
+// script.js), best move counts per room (readBestScore in script.js), as
+// { [levelCode]: moves }, and saved Creative Mode rooms (loadRooms in
+// rooms.js).
 
 const BEST_SCORE_KEY_PREFIX = bestScoreKeyFor('');
 
 function emptySave() {
-  return { progress: defaultProgress(), dailyStats: defaultDailyStats(), bestScores: {} };
+  return { progress: defaultProgress(), dailyStats: defaultDailyStats(), bestScores: {}, rooms: defaultRooms() };
 }
 
 function finiteOrNull(value) {
@@ -43,6 +44,7 @@ function normalizeSave(save) {
     progress: { version: 1, levels, story: normalizeStorySeen(progress.story) },
     dailyStats: normalizeDailyStats(s.dailyStats),
     bestScores,
+    rooms: normalizeRooms(s.rooms),
   };
 }
 
@@ -64,7 +66,7 @@ function readLocalSave() {
   bestScoreKeys().forEach((key) => {
     bestScores[key.slice(BEST_SCORE_KEY_PREFIX.length)] = readBestScore(key.slice(BEST_SCORE_KEY_PREFIX.length));
   });
-  return normalizeSave({ progress: loadProgress(), dailyStats: loadDailyStats(), bestScores });
+  return normalizeSave({ progress: loadProgress(), dailyStats: loadDailyStats(), bestScores, rooms: loadRooms() });
 }
 
 // Replaces everything saved on this device with `save`. Writes storage
@@ -75,6 +77,7 @@ function writeLocalSave(save) {
   try {
     localStorage.setItem(PROGRESS_KEY, JSON.stringify(s.progress));
     localStorage.setItem(DAILY_STATS_KEY, JSON.stringify(s.dailyStats));
+    localStorage.setItem(ROOMS_KEY, JSON.stringify(s.rooms));
     bestScoreKeys().forEach((key) => localStorage.removeItem(key));
     Object.entries(s.bestScores).forEach(([code, moves]) => {
       localStorage.setItem(bestScoreKeyFor(code), String(moves));
@@ -88,6 +91,7 @@ function clearLocalSave() {
   try {
     localStorage.removeItem(PROGRESS_KEY);
     localStorage.removeItem(DAILY_STATS_KEY);
+    localStorage.removeItem(ROOMS_KEY);
     bestScoreKeys().forEach((key) => localStorage.removeItem(key));
   } catch (e) {
     // nothing saved to clear
@@ -185,7 +189,17 @@ function mergeSaves(local, other, { campaignReset = false } = {}) {
     progress: campaignReset ? a.progress : mergeProgress(a.progress, b.progress),
     dailyStats: mergeDailyStats(a.dailyStats, b.dailyStats),
     bestScores: mergeBestScores(a.bestScores, b.bestScores),
+    rooms: mergeRooms(a.rooms, b.rooms),
   };
+}
+
+// A device with nothing unsynced takes the account's copy of the save —
+// all of it, except My Rooms, which merge: a room is never lost just
+// because a copy without it (say, one uploaded by an older version of the
+// game) reached the account. Deletes still carry over (see mergeRooms).
+function takeCloudSave(local, cloud) {
+  const c = normalizeSave(cloud);
+  return { ...c, rooms: mergeRooms(normalizeSave(local).rooms, c.rooms) };
 }
 
 // --- Serializing -------------------------------------------------------------

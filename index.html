@@ -245,6 +245,9 @@
     <span id="trap-counter" hidden></span>
     <button id="validate-btn" class="pixel-btn" hidden>Validate</button>
     <button id="share-btn" class="pixel-btn" hidden>Share</button>
+    <button id="save-room-btn" class="pixel-btn" type="button" hidden>Save</button>
+    <button id="my-rooms-btn" class="pixel-btn" type="button" hidden>My Rooms</button>
+    <span id="room-status" role="status" hidden></span>
   </div>
 
   <section id="daily-hub" hidden>
@@ -287,6 +290,13 @@
       <button type="button" data-theme="grass" aria-pressed="false">Grass</button>
       <button type="button" data-theme="castle" aria-pressed="false">Castle</button>
     </div>
+    <div id="creative-room-fields">
+      <label for="room-name-input">Room name</label>
+      <input id="room-name-input" type="text" maxlength="32" placeholder="Untitled room" spellcheck="false" autocomplete="off">
+      <label for="time-limit-select">⏱ Time limit</label>
+      <select id="time-limit-select"></select>
+      <p id="time-limit-hint"></p>
+    </div>
     <p id="builder-panel-hint">Drag a block onto the grid to place it. Click a placed turret, vent, current, imp, boar or one-way to rotate it. Every trap works in every look.</p>
     <div id="palette-list"></div>
     <button id="trash-can" class="palette-item" type="button" draggable="true"
@@ -328,6 +338,17 @@
   <p id="solver-message"></p>
   <p id="best-score" hidden></p>
 
+  <div id="rooms-modal" class="title-modal" role="dialog" aria-modal="true" aria-labelledby="rooms-modal-title" hidden>
+    <div class="title-modal-card">
+      <h2 id="rooms-modal-title">My Rooms</h2>
+      <p id="rooms-count"></p>
+      <p id="rooms-empty" hidden>No saved rooms yet. Build a room in Creative Mode and press Save to keep it here.</p>
+      <ul id="rooms-list"></ul>
+      <button type="button" class="title-btn title-btn-primary" id="rooms-new-btn">New Room</button>
+      <button type="button" class="title-btn" id="rooms-close-btn">Back</button>
+    </div>
+  </div>
+
   <div id="story-modal" class="title-modal" hidden>
     <div class="title-modal-card">
       <h2>Story</h2>
@@ -365,6 +386,7 @@
   <script src="levels.js" defer></script>
   <script src="story.js" defer></script>
   <script src="badges.js" defer></script>
+  <script src="rooms.js" defer></script>
   <script src="cloudsave.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js" defer></script>

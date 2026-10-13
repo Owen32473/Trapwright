@@ -2752,3 +2752,142 @@ body.playing #daily-builder-result:empty {
 #account-guest-badges-wrap[hidden] {
   display: none;
 }
+
+/* --- Creative Mode: room name, time limit, My Rooms (rooms.js) ------------- */
+
+#creative-room-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#creative-room-fields[hidden] {
+  display: none;
+}
+
+#creative-room-fields label {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #b7b7c2;
+}
+
+#creative-room-fields input,
+#creative-room-fields select {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 6px 8px;
+  background: #1e1e24;
+  color: #eee;
+  border: 1px solid #3a3a44;
+  border-radius: 6px;
+}
+
+#creative-room-fields input:focus-visible,
+#creative-room-fields select:focus-visible {
+  outline: 2px solid #4aa3ff;
+}
+
+#time-limit-hint {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #b7b7c2;
+}
+
+#room-status {
+  font-size: 0.85rem;
+  color: #cfc8e0;
+  text-shadow: 0 0 3px #000;
+}
+
+#room-status[hidden] {
+  display: none;
+}
+
+#rooms-count {
+  margin: -8px 0 10px;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+#rooms-empty[hidden] {
+  display: none;
+}
+
+#rooms-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.room-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid #000;
+  border-radius: 8px;
+}
+
+.room-row.current {
+  border-color: var(--theme-accent);
+}
+
+.room-thumb {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(var(--grid-size), 1fr);
+  grid-template-rows: repeat(var(--grid-size), 1fr);
+  width: 56px;
+  height: 56px;
+  background: #000;
+  border: 1px solid #000;
+  pointer-events: none;
+}
+
+/* The thumbnail is renderLevel's own markup; its tiles need no chrome. */
+.room-thumb .tile {
+  min-width: 0;
+  min-height: 0;
+  animation: none;
+}
+
+.room-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.room-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-meta {
+  font-size: 0.75rem;
+  color: #aaa;
+}
+
+.room-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.room-actions .pixel-btn {
+  min-width: 0;
+  padding: 6px 14px;
+}
+
+.room-delete.confirming {
+  color: #ff6b6b;
+}

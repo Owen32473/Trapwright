@@ -8,7 +8,7 @@
 // they save whatever a real player had stored first and put it back after,
 // since tests.html shares an origin with the game.
 const savedStorage = {};
-['trapRoomDailyStats', 'trapRoomProgress'].forEach((key) => {
+['trapRoomDailyStats', 'trapRoomProgress', 'trapRoomCreativeRooms'].forEach((key) => {
   try { savedStorage[key] = localStorage.getItem(key); } catch (e) { savedStorage[key] = null; }
 });
 function restoreStorage() {
@@ -1028,6 +1028,55 @@ assert(completedCount(loadProgress(), 'lava') === 0, 'reset progress clears ever
   assert(earnedBadges(everything).length === BADGES.length, 'beating the whole game earns every badge');
   const merged = mergeSaves(normalizeSave({ progress: almost }), normalizeSave({ progress: { levels: { 'lava-07': { moves: 3 } } } }));
   assert(isBadgeEarned(merged.progress, 'lava'), 'levels beaten on two devices add up to a badge');
+}
+
+// Creative Mode rooms (rooms.js) and timed rooms.
+{
+  const room = (fill) => ({ ...createEmptyLevel(4), theme: 'ice', tiles: new Array(16).fill(fill) });
+  const draft = room('empty');
+  const saved = normalizeRooms({ rooms: { a: { name: '  My   room ', level: draft, updatedAt: 5 } } });
+  assert(saved.rooms.a.name === 'My room' && saved.rooms.a.level.start === null && saved.rooms.a.level.theme === 'ice',
+    'a half-built room saves with its name tidied and no start or goal yet');
+  assert(cleanRoomName('') === 'Untitled room' && cleanRoomName('x'.repeat(80)).length === MAX_ROOM_NAME,
+    'room names are never blank or too long');
+  const junk = normalizeRooms({ rooms: { b: { name: 'x', level: { size: 3, tiles: [] }, updatedAt: 1 }, c: 'nope' } });
+  assert(Object.keys(junk.rooms).length === 0, 'malformed rooms are dropped');
+
+  const phone = { rooms: { a: { name: 'Old', level: draft, updatedAt: 5 }, b: { name: 'Keep', level: draft, updatedAt: 6 } }, deleted: {} };
+  const laptop = { rooms: { a: { name: 'New', level: room('wall'), updatedAt: 9 } }, deleted: { b: 8 } };
+  const merged = mergeRooms(phone, laptop);
+  assert(merged.rooms.a.name === 'New' && merged.rooms.a.level.tiles[0] === 'wall', "merging rooms keeps each room's newest edit");
+  assert(!merged.rooms.b && merged.deleted.b === 8, 'a room deleted on one device stays deleted');
+  const revived = mergeRooms(merged, { rooms: { b: { name: 'Edited later', level: draft, updatedAt: 12 } }, deleted: {} });
+  assert(revived.rooms.b && revived.rooms.b.name === 'Edited later', 'an edit made after a delete brings the room back');
+  assert(JSON.stringify(mergeRooms(phone, laptop)) === JSON.stringify(mergeRooms(laptop, phone)), 'merging rooms is order-independent');
+  const lostRooms = takeCloudSave(normalizeSave({ rooms: phone }), normalizeSave({ progress: { levels: { 'lava-01': { moves: 3 } } } }));
+  assert(lostRooms.rooms.rooms.a && lostRooms.progress.levels['lava-01'],
+    "taking the account's copy keeps this device's rooms when that copy has lost them");
+  assert(!takeCloudSave(normalizeSave({ rooms: phone }), normalizeSave({ rooms: laptop })).rooms.rooms.b,
+    "taking the account's copy still applies its deletes");
+  const cloudMerged = mergeSaves(normalizeSave({ rooms: phone }), normalizeSave({ rooms: laptop }));
+  assert(cloudMerged.rooms.rooms.a.name === 'New' && !cloudMerged.rooms.rooms.b, 'cloud saves carry and merge rooms');
+
+  localStorage.removeItem(ROOMS_KEY);
+  assert(putRoom('x1', 'First', draft, 100) && roomList(loadRooms())[0].name === 'First', 'putRoom saves a room to this device');
+  putRoom('x2', 'Second', draft, 200);
+  assert(roomList(loadRooms()).map((r) => r.id).join() === 'x2,x1', 'My Rooms lists the newest first');
+  deleteRoom('x1', 300);
+  assert(!loadRooms().rooms.x1 && loadRooms().deleted.x1 === 300, 'deleteRoom removes a room and remembers it was deleted');
+  for (let i = 0; i < MAX_ROOMS; i++) putRoom(`f${i}`, 'Filler', draft, 400 + i);
+  assert(putRoom('one-too-many', 'Nope', draft) === null, `My Rooms holds at most ${MAX_ROOMS} rooms`);
+  localStorage.removeItem(ROOMS_KEY);
+
+  assert(cleanTimeLimit(30) === 30 && cleanTimeLimit('45') === 45 && cleanTimeLimit(0) === 0 && cleanTimeLimit(-5) === 0 &&
+    cleanTimeLimit(99999) === 0 && cleanTimeLimit('abc') === 0, 'only a sane time limit counts');
+  const timed = { ...solvableLevel, timeLimit: 30 };
+  assert(decodeLevel(encodeLevel(timed)).timeLimit === 30, "a shared link keeps the room's time limit");
+  const fastest = fastestRunSeconds(solvableLevel);
+  assert(fastest === (solveBFS(solvableLevel).moves * HAZARD_TICK_MS) / 1000, "the fastest run is the bot's turns at one tick each");
+  assert(minFairTimeLimit(solvableLevel) === Math.ceil(fastest * 1.5 + 3), "the fairest limit Creative Mode allows follows the castle's rule");
+  assert(minFairTimeLimit(spikeBlockedLevel) === null, 'an unsolvable room has no fair limit');
+  assert(cleanRoomLevel({ ...timed, timeLimit: 3 }).timeLimit === undefined, 'a saved room drops a limit too short to be real');
 }
 
 restoreStorage();
