@@ -8,7 +8,7 @@
 // they save whatever a real player had stored first and put it back after,
 // since tests.html shares an origin with the game.
 const savedStorage = {};
-['trapRoomDailyStats', 'trapRoomProgress'].forEach((key) => {
+['trapRoomDailyStats', 'trapRoomProgress', 'trapRoomCreativeRooms'].forEach((key) => {
   try { savedStorage[key] = localStorage.getItem(key); } catch (e) { savedStorage[key] = null; }
 });
 function restoreStorage() {
@@ -218,9 +218,11 @@ function corridor(tiles) {
 // paints "undefined"-colored pixels.
 assert(IMP_FRAME.every((row) => row.length === 16) && IMP_FRAME.length === 16, 'imp sprite frame is 16x16');
 assert(BOAR_FRAME.every((row) => row.length === 16) && BOAR_FRAME.length === 16, 'boar sprite frame is 16x16');
+assert(GHOST_FRAME.every((row) => row.length === 16) && GHOST_FRAME.length === 16, 'ghost sprite frame is 16x16');
 const liveTextureKeys = [
   'bomb-lit', 'bomb-gone', 'vent-up-active', 'timedspike-active', 'timedspike-inactive', 'trap-triggered',
   'thinice-cracked', 'thinice-broken', 'icicle-shaking', 'icicle-fallen', 'snapjaw-open', 'snapjaw-shut',
+  'crusher-down', 'gate-open',
 ];
 for (const theme of THEMES) {
   assert(
@@ -353,6 +355,82 @@ assert(
   warpTimeline.stops[2].warp === true && warpTimeline.durationMs === 3 * SLIDE_MS_PER_TILE,
   'a portal jump is animated as a warp, not a glide'
 );
+const stepTimeline = slideTimeline(5, 0, [1]);
+assert(
+  stepTimeline.walk === true && stepTimeline.durationMs === WALK_STEP_MS && stepTimeline.stops.length === 2,
+  'a plain one-tile step is animated as a walk'
+);
+
+// Terrain animations: the ground a move crosses picks the travel pose, and
+// falling ground only makes you wobble while it's about to go.
+const iceCtx = buildHazardContext(iceLevel);
+assert(travelPoseFor(iceCtx.tiles, resolveMove(iceCtx, 0, 0, 1, 0, 0, [])) === 'slip', 'sliding on ice uses the slip pose');
+const plainCtx = buildHazardContext(corridor(['start', 'empty', 'goal']));
+assert(travelPoseFor(plainCtx.tiles, resolveMove(plainCtx, 0, 0, 1, 0, 0, [])) === 'walk', 'a plain step is a walk');
+const shakyCtx = buildHazardContext(corridor(['start', 'thinice', 'icicle', 'frost', 'goal']));
+const shakyStates = initialObjectStates(shakyCtx);
+assert(terrainStanceAt(shakyCtx, 1, shakyStates) === 'wobble', 'intact thin ice makes the player wobble');
+assert(terrainStanceAt(shakyCtx, 2, shakyStates) === null, 'a still-hanging icicle is steady ground');
+const shakingStates = shakyStates.slice();
+shakingStates[shakyCtx.slotAt.get(2)] = ICICLE_DROP_TICKS;
+assert(terrainStanceAt(shakyCtx, 2, shakingStates) === 'wobble', 'a shaking icicle makes the player wobble');
+assert(terrainStanceAt(shakyCtx, 3, shakyStates) === 'shiver', 'frost makes the player shiver');
+assert(terrainStanceAt(plainCtx, 1, initialObjectStates(plainCtx)) === null, 'plain floor has no stance');
+
+// Moving hazards say where they came from, so they can glide in.
+const glideImpLevel = corridor(['start', 'imp-h', 'empty', 'empty', 'goal']);
+const glideImpCtx = buildHazardContext(glideImpLevel);
+const glideImpOverlays = hazardOverlaysFor(glideImpCtx, 1, initialObjectStates(glideImpCtx));
+const glideImpAt = impPositionAt(glideImpCtx.imps[0], 1);
+assert(
+  JSON.stringify(glideImpOverlays.get(glideImpAt)[0].from) === JSON.stringify([impPositionAt(glideImpCtx.imps[0], 0)]),
+  'an imp overlay glides in from where it stood last tick'
+);
+
+// Levers: each entry flips one; the exit is solid until every lever is on.
+const leverLevel = corridor(['start', 'lever', 'empty', 'lever', 'goal']);
+const leverCtx = buildHazardContext(leverLevel);
+let leverStates = initialObjectStates(leverCtx);
+assert(isExitLocked(leverCtx, leverStates), 'a room with levers starts with the exit locked');
+assert(isSolidAt(leverCtx, 4, leverStates), 'a locked exit is solid');
+const firstFlip = resolveMove(leverCtx, 0, 0, 1, 0, 0, leverStates);
+assert(firstFlip.flippedLevers.length === 1, 'stepping onto a lever flips it');
+leverStates = applyMoveToObjects(leverStates, firstFlip);
+assert(leversOn(leverCtx, leverStates) === 1 && isExitLocked(leverCtx, leverStates), 'one of two levers on keeps the exit locked');
+const flipBack = applyMoveToObjects(leverStates, resolveMove(leverCtx, 2, 0, -1, 0, 0, leverStates));
+assert(leversOn(leverCtx, flipBack) === 0, 'stepping onto a lever again flips it back off');
+assert(resolveMove(leverCtx, 3, 0, 1, 0, 0, leverStates) === null, 'walking into a locked exit is a blocked move');
+const bothOn = leverStates.map(() => LEVER_ON);
+assert(!isExitLocked(leverCtx, bothOn) && resolveMove(leverCtx, 3, 0, 1, 0, 0, bothOn).won, 'every lever on opens the exit');
+assert(solveBFS(leverLevel).solvable && parMoves(leverLevel) === 4, 'the solver flips every lever on its way to the exit');
+const doubleBack = corridor(['lever', 'start', 'goal']);
+assert(parMoves(doubleBack) === 3, 'the solver doubles back for a lever behind the start');
+const iceIntoExit = buildHazardContext(corridor(['start', 'lever', 'ice', 'goal']));
+const flipAndSlide = resolveMove(iceIntoExit, 1, 0, 1, 0, 0, applyMoveToObjects(initialObjectStates(iceIntoExit),
+  resolveMove(iceIntoExit, 0, 0, 1, 0, 0, initialObjectStates(iceIntoExit))));
+assert(flipAndSlide.won, 'a slide can carry you into an exit a lever already opened');
+assert(canPlaceTileType(corridor(['lever', 'lever', 'lever', 'lever', 'empty', 'start', 'goal']), 4, 0, 'lever') === false,
+  `no more than ${MAX_LEVERS} levers fit in one room`);
+
+// Stars against par.
+assert(starsFor(10, 10) === 3 && starsFor(8, 10) === 3, 'par or better is 3 stars');
+assert(starsFor(15, 10) === 2 && starsFor(16, 10) === 1, 'up to 50% over par is 2 stars, more is 1');
+assert(starsFor(5, null) === null, 'no par, no stars');
+assert(starText(2) === '★★☆', 'star text shows filled and hollow stars');
+const waitingRoom = corridor(['start', 'timedspike', 'goal']);
+assert(parMoves(waitingRoom) === 2 && solveBFS(waitingRoom).moves > 2, 'par counts moves, not the turns spent waiting');
+
+// Some daily solver rooms get levers, always still solvable.
+let dailyLeverDays = 0;
+for (let day = 1; day <= 28; day++) {
+  const date = `2026-03-${String(day).padStart(2, '0')}`;
+  const room = generateDailySolverLevel(date, 'medium');
+  if (room.tiles.includes('lever')) {
+    dailyLeverDays++;
+    assert(isSolvable(room), `the ${date} medium daily room is solvable with its levers`);
+  }
+}
+assert(dailyLeverDays > 0 && dailyLeverDays < 28, `some daily rooms have levers, not all (${dailyLeverDays} of 28)`);
 
 // Lava current: stepping on it shoves you one more tile its way.
 const currentCtx = buildHazardContext(corridor(['start', 'current-right', 'empty', 'empty', 'goal']));
@@ -470,6 +548,62 @@ const boarCtx = buildHazardContext(corridor(['start', 'boar-h', 'empty', 'empty'
 assert(JSON.stringify(boarCellsAt(boarCtx.boars[0], 1)) === '[3,2]', 'a boar charges 2 tiles per tick');
 assert(hazardAt(boarCtx, 2, 1) === 'wild boar' && hazardAt(boarCtx, 3, 1) === 'wild boar', 'both tiles a boar crosses are deadly');
 
+// --- Castle traps --------------------------------------------------------------
+
+// Crusher: up (walkable) on ticks 0-2 of 6, slams (deadly) on 3, down
+// (solid) on 4-5.
+{
+  const ctx = buildHazardContext(corridor(['start', 'crusher', 'goal']));
+  assert(hazardAt(ctx, 1, 2) === null && hazardAt(ctx, 1, CRUSHER_PERIOD + 3) === 'crusher', 'a crusher is deadly only as it slams');
+  assert(!isSolidAt(ctx, 1, [], 1) && isSolidAt(ctx, 1, [], 4) && isSolidAt(ctx, 1, [], 5), 'a crusher is solid while it is down');
+  assert(resolveMove(ctx, 0, 0, 1, 0, 4, []) === null, 'you cannot walk into a crusher that is down');
+  // Two crushers in a row fit in one up-window (ticks 0 and 1, out on 2);
+  // a third would put you under it as it slams.
+  assert(isSolvable(corridor(['start', 'crusher', 'crusher', 'empty', 'goal'])), 'two crushers in a row can be timed');
+  assert(!isSolvable(corridor(['start', 'crusher', 'crusher', 'crusher', 'empty', 'goal'])), 'three in a row cannot');
+}
+
+// Pressure plates and portcullises: every press flips every portcullis;
+// they start shut, and a press mid-move counts for the rest of that move.
+{
+  const lvl = corridor(['start', 'plate', 'gate', 'goal']);
+  const ctx = buildHazardContext(lvl);
+  const s0 = initialObjectStates(ctx);
+  assert(isSolidAt(ctx, 2, s0) && !gatesOpen(ctx, s0), 'portcullises start shut');
+  const press = resolveMove(ctx, 0, 0, 1, 0, 0, s0);
+  assert(press.pressedPlates.length === 1, 'stepping on a plate presses it');
+  const s1 = applyMoveToObjects(s0, press);
+  assert(gatesOpen(ctx, s1) && !isSolidAt(ctx, 2, s1), 'a press opens the portcullises');
+  assert(solveBFS(lvl).moves === 3, 'the bot presses the plate, then walks through');
+  const offPlate = resolveMove(ctx, 1, 0, -1, 0, 1, s1);
+  const s2 = applyMoveToObjects(s1, resolveMove(ctx, 0, 0, 1, 0, 2, applyMoveToObjects(s1, offPlate)));
+  assert(!gatesOpen(ctx, s2) && isSolidAt(ctx, 2, s2), 'pressing a plate again shuts them');
+  const slide = buildHazardContext(corridor(['start', 'ice', 'plate', 'ice', 'gate', 'goal']));
+  assert(resolveMove(slide, 0, 0, 1, 0, 0, initialObjectStates(slide)).final === 2, 'a slide stops dead on a plate (it is not ice)');
+}
+
+// Ghost: every GHOST_PERIOD ticks it drifts a tile toward you, straight
+// through walls; it never enters the start or the goal; touching it kills.
+{
+  const lvl = gridLevel([
+    ['start', 'wall', 'wall', 'ghost'],
+    ['empty', 'wall', 'wall', 'empty'],
+    ['empty', 'empty', 'empty', 'empty'],
+    ['wall', 'wall', 'wall', 'goal'],
+  ]);
+  lvl.start = [0, 0];
+  lvl.goal = [3, 3];
+  const ctx = buildHazardContext(lvl);
+  const s0 = initialObjectStates(ctx);
+  assert(s0[ctx.ghost.slot] === 3, 'the ghost starts on its tile');
+  assert(advanceObjects(ctx, s0, 8, 1)[ctx.ghost.slot] === 3, 'the ghost waits on odd ticks');
+  assert(advanceObjects(ctx, s0, 8, 2)[ctx.ghost.slot] === 2, 'it drifts along the longer axis first, through the wall');
+  assert(ghostStep(ctx, 1, 0) === 1 || ghostStep(ctx, 1, 0) === 5, 'it never steps onto the start');
+  assert(hazardAt(ctx, 2, 0, [2]) === 'ghost', 'sharing its tile is fatal');
+  assert(hazardAt(ctx, 0, 0, [0]) === null, 'the start is always safe');
+  assert(isSolvable(lvl), 'a ghost room can be outrun');
+}
+
 // --- Daily Puzzle -------------------------------------------------------
 
 // Determinism: the whole point of seeding from the date is that every
@@ -493,17 +627,29 @@ for (const difficulty of DIFFICULTIES) {
 }
 
 // The daily theme rotates lava -> ice -> grass by date, the same for
-// everyone, and each room is generated in (and marked with) that theme.
-assert(
-  ['2026-06-01', '2026-06-02', '2026-06-03'].map(dailyThemeFor).sort().join() === 'grass,ice,lava',
-  'three consecutive days cover all three daily themes'
-);
-assert(dailyThemeFor('2026-06-01') === dailyThemeFor('2026-06-04'), 'the daily theme repeats every 3 days');
+// everyone, and each room is generated in (and marked with) that theme —
+// except on rare castle days, which take over whichever theme was due.
+{
+  const dayNumber = (dateStr) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return Math.round(Date.UTC(y, m - 1, d) / 86400000);
+  };
+  const dates = [];
+  for (let day = 0; day < 730; day++) dates.push(new Date(Date.UTC(2026, 0, 1) + day * 86400000).toISOString().slice(0, 10));
+  const castleDays = dates.filter((d) => dailyThemeFor(d) === 'castle').length;
+  assert(castleDays / dates.length > 0.08 && castleDays / dates.length < 0.22, `castle days are rare (${castleDays} of ${dates.length})`);
+  assert(
+    dates.every((d) => dailyThemeFor(d) === 'castle' || dailyThemeFor(d) === MAIN_THEMES[mod(dayNumber(d), 3)]),
+    'every other day keeps the lava -> ice -> grass rotation'
+  );
+  assert(THEMES.every((t) => dates.some((d) => dailyThemeFor(d) === t)), 'every theme gets daily puzzles');
+  assert(dailyThemeFor('2026-06-01') === dailyThemeFor('2026-06-01'), 'the daily theme is the same for everyone on a date');
+}
 
 // Across a month of dates, every difficulty should generate a real room
 // (not the empty fallback) that actually includes its theme's signature
 // traps.
-const DAILY_SIGNATURE = { lava: ['bomb', 'turret'], ice: ['turret', 'icicle'], grass: ['snapjaw'] };
+const DAILY_SIGNATURE = { lava: ['bomb', 'turret'], ice: ['turret', 'icicle'], grass: ['snapjaw'], castle: ['plate', 'gate'] };
 for (const difficulty of DIFFICULTIES) {
   let fallbacks = 0;
   let missing = 0;
@@ -594,7 +740,7 @@ assert(decodeLevel(encodeLevel(themedRoom)).theme === 'grass', 'a shared link re
 
 // --- Campaign ----------------------------------------------------------------
 
-assert(CAMPAIGN_LEVELS.length === THEMES.length * LEVELS_PER_THEME, 'the campaign has 10 levels per theme');
+assert(CAMPAIGN_LEVELS.length === THEMES.length * LEVELS_PER_THEME, `the campaign has ${LEVELS_PER_THEME} levels per theme`);
 assert(new Set(CAMPAIGN_LEVELS.map((d) => d.id)).size === CAMPAIGN_LEVELS.length, 'campaign level ids are unique');
 const allowedFamilies = (theme) => new Set([...PALETTE_BASICS, 'empty', ...THEME_TRAPS[theme]].map(tileFamily));
 for (const def of CAMPAIGN_LEVELS) {
@@ -613,17 +759,52 @@ for (const def of CAMPAIGN_LEVELS) {
   const count = (type) => level.tiles.filter((t) => t === type).length;
   assert(
     count('bomb') <= MAX_BOMBS && count('icicle') <= MAX_ICICLES && count('thinice') <= MAX_THIN_ICE &&
+      count('lever') <= MAX_LEVERS &&
       count('portal-a') <= MAX_PORTALS_PER_COLOR && count('portal-b') <= MAX_PORTALS_PER_COLOR,
     `${def.id} stays within Creative Mode's per-trap caps`
   );
+  const par = campaignPar(def.id);
+  assert(par >= 1 && par <= moves, `${def.id} has a par (${par}) no longer than the bot's turns (${moves})`);
+  if (count('lever')) {
+    const leverless = { ...level, tiles: level.tiles.map((t) => (t === 'lever' ? 'empty' : t)) };
+    assert(parMoves(leverless) < par, `${def.id}'s levers make the room longer than without them`);
+  }
   if (def.timeLimit) {
+    // The castle's timed rooms are tighter: 1.5x the bot's time + 3s,
+    // against double + 4s everywhere else.
     const botSeconds = (moves * HAZARD_TICK_MS) / 1000;
-    assert(def.timeLimit >= botSeconds * 2 + 4, `${def.id}'s ${def.timeLimit}s limit leaves at least double the bot's ${botSeconds}s`);
+    const [factor, extra] = def.theme === 'castle' ? [1.5, 3] : [2, 4];
+    assert(
+      def.timeLimit >= botSeconds * factor + extra,
+      `${def.id}'s ${def.timeLimit}s limit leaves at least ${factor}x the bot's ${botSeconds}s + ${extra}s`
+    );
+    if (def.theme === 'castle') assert(def.timeLimit <= botSeconds * 2 + 4, `${def.id}'s limit is tighter than other worlds'`);
   }
 }
 for (const theme of THEMES) {
   const firstIntro = levelIntroductions(themeLevels(theme)[0].id);
   assert(firstIntro.length > 0, `${theme} level 1 introduces at least one trap`);
+  const leverRooms = themeLevels(theme).filter((def) => def.map.some((row) => /(^|\s)L(\s|$)/.test(row)));
+  assert(leverRooms.length >= 2, `${theme} has lever rooms`);
+  assert(levelIntroductions(leverRooms[0].id).includes('lever'), `${theme}'s first lever room introduces the lever`);
+  // The lever rooms close out the world, hardest last: each has a longer
+  // par than every level before it.
+  const pars = themeLevels(theme).map((def) => campaignPar(def.id));
+  leverRooms.forEach((def) => {
+    const n = themeLevels(theme).indexOf(def);
+    assert(pars[n] > Math.max(...pars.slice(0, n)), `${def.id}'s par (${pars[n]}) is the longest in ${theme} so far`);
+  });
+}
+
+// The castle gets harder every level, and its last room has the longest
+// par in the game.
+{
+  const castlePars = themeLevels('castle').map((def) => campaignPar(def.id));
+  assert(castlePars.every((p, k) => k === 0 || p > castlePars[k - 1]), `castle pars rise level by level (${castlePars.join(', ')})`);
+  const otherPars = CAMPAIGN_LEVELS.filter((def) => def.theme !== 'castle').map((def) => campaignPar(def.id));
+  assert(castlePars[castlePars.length - 1] > Math.max(...otherPars), 'the last castle room has the longest par in the game');
+  const midWorld = MAIN_THEMES.flatMap((t) => themeLevels(t).slice(4, 8).map((def) => campaignPar(def.id))).sort((a, b) => a - b);
+  assert(castlePars[0] > midWorld[Math.floor(midWorld.length / 2)], 'the first castle room is already longer than a typical mid-world level');
 }
 
 // Unlock rules: lava is always open; the next theme opens at
@@ -640,13 +821,39 @@ assert(!isThemeUnlocked(progress, 'ice'), `${UNLOCK_REQUIREMENT - 1} lava levels
 assert(isLevelUnlocked(progress, 'lava', UNLOCK_REQUIREMENT - 1), 'beating a level opens the next one');
 progress = recordLevelComplete(themeLevels('lava')[UNLOCK_REQUIREMENT - 1].id, { moves: 10, timeMs: 5000, deaths: 0 });
 assert(isThemeUnlocked(progress, 'ice') && !isThemeUnlocked(progress, 'grass'), `${UNLOCK_REQUIREMENT} lava levels unlock ice (not grass)`);
+assert(!isLevelUnlocked(progress, 'lava', 10), 'the lever rooms open in order, after level 10');
 progress = recordLevelComplete('lava-01', { moves: 7, timeMs: 9000, deaths: 3 });
 assert(
   JSON.stringify(progress.levels['lava-01']) === JSON.stringify({ moves: 7, timeMs: 5000, deaths: 1 }),
   'a replay keeps the best of each stat'
 );
+progress = recordLevelComplete('lava-01', { moves: 9, timeMs: 9000, deaths: 3, stars: 2 });
+assert(levelStars(progress, 'lava-01') === 2, 'a win records its stars');
+progress = recordLevelComplete('lava-01', { moves: 12, timeMs: 9000, deaths: 3, stars: 1 });
+assert(levelStars(progress, 'lava-01') === 2 && progress.levels['lava-01'].moves === 7, 'a worse replay keeps the best stars');
+assert(themeStars(progress, 'lava') === 2, 'a theme totals its levels’ stars');
 resetProgress();
 assert(completedCount(loadProgress(), 'lava') === 0, 'reset progress clears every level');
+
+// The castle is the bonus world: it opens only once every level of the
+// other three is beaten — the usual 8 of grass isn't enough.
+{
+  const beat = (defs) => defs.forEach((def) => { progress = recordLevelComplete(def.id, { moves: 10, timeMs: 5000, deaths: 0 }); });
+  resetProgress();
+  progress = loadProgress();
+  beat(themeLevels('lava'));
+  beat(themeLevels('ice'));
+  beat(themeLevels('grass').slice(0, UNLOCK_REQUIREMENT));
+  assert(isThemeUnlocked(progress, 'grass') && !isThemeUnlocked(progress, 'castle'), '8 grass levels do not open the castle');
+  beat(themeLevels('grass').slice(UNLOCK_REQUIREMENT, -1));
+  assert(!isThemeUnlocked(progress, 'castle'), 'one level short of all of them keeps the castle shut');
+  const { done, total } = bonusProgress(progress);
+  assert(done === total - 1 && total === MAIN_THEMES.length * LEVELS_PER_THEME, 'bonus progress counts every main-world level');
+  beat(themeLevels('grass').slice(-1));
+  assert(isThemeUnlocked(progress, 'castle'), 'beating every other level opens the castle');
+  assert(isLevelUnlocked(progress, 'castle', 0) && !isLevelUnlocked(progress, 'castle', 1), 'castle levels open in order');
+  resetProgress();
+}
 
 // Cloud saves (cloudsave.js): merging two copies of a save keeps everything
 // either one earned.
@@ -702,6 +909,15 @@ assert(completedCount(loadProgress(), 'lava') === 0, 'reset progress clears ever
   assert(!('x' in odd.progress.levels) && odd.progress.levels.y.moves === 5 && odd.progress.levels.y.timeMs === null,
     'normalizeSave drops malformed levels and fills missing stats');
   assert(JSON.stringify(odd.bestScores) === JSON.stringify({ s: 4 }), 'normalizeSave drops non-numeric best scores');
+  const starred = mergeSaves(
+    normalizeSave({ progress: { levels: { 'lava-02': { moves: 9, timeMs: 1, deaths: 0, stars: 2 } } } }),
+    normalizeSave({ progress: { levels: { 'lava-02': { moves: 12, timeMs: 1, deaths: 0, stars: 3 }, 'lava-03': { moves: 5, timeMs: 1, deaths: 0 } } } })
+  );
+  assert(starred.progress.levels['lava-02'].stars === 3 && starred.progress.levels['lava-02'].moves === 9,
+    'merged saves keep the most stars alongside the fewest moves');
+  assert(!('stars' in starred.progress.levels['lava-03']), 'a level beaten before stars existed stays starless');
+  assert(!('stars' in normalizeSave({ progress: { levels: { z: { moves: 1, stars: 7 } } } }).progress.levels.z),
+    'normalizeSave drops an impossible star count');
 
   // Round trip through this device's storage, putting the real save back after.
   const realSave = readLocalSave();
@@ -710,6 +926,157 @@ assert(completedCount(loadProgress(), 'lava') === 0, 'reset progress clears ever
   clearLocalSave();
   assert(serializeSave(readLocalSave()) === serializeSave(emptySave()), 'clearLocalSave removes the whole save');
   writeLocalSave(realSave);
+}
+
+// Story (story.js): every scene can play, and plays when it should.
+{
+  const kinds = ['stage', 'fadeIn', 'fadeOut', 'chapter', 'actor', 'prop', 'walk', 'face', 'act', 'fade',
+    'remove', 'tile', 'say', 'note', 'wait', 'sound', 'shake', 'flash'];
+  const looks = ['hero', 'master', 'shadow', 'ghost'];
+  const poses = ['idle', 'win', 'hit', 'float', 'wave'];
+  STORY_SCENES.forEach((scene) => {
+    const problems = [];
+    const onStage = new Set();
+    let staged = false;
+    scene.steps.forEach((step, i) => {
+      const kind = kinds.find((k) => k in step);
+      const where = `step ${i}`;
+      if (!kind) { problems.push(`${where}: unknown step`); return; }
+      if (kind === 'stage') {
+        staged = true;
+        onStage.clear();
+        if (!THEMES.includes(step.stage.theme)) problems.push(`${where}: unknown theme`);
+        try { parseStageMap(step.stage.map); } catch (e) { problems.push(`${where}: ${e.message}`); }
+      } else if (kind === 'actor' || kind === 'prop') {
+        if (!staged) problems.push(`${where}: ${step[kind]} placed before any stage`);
+        if (kind === 'actor' && !looks.includes(step.look)) problems.push(`${where}: unknown look ${step.look}`);
+        if (kind === 'prop' && !PROP_ART[step.img]) problems.push(`${where}: unknown prop art ${step.img}`);
+        onStage.add(step[kind]);
+      } else if (['walk', 'face', 'act', 'fade', 'remove'].includes(kind)) {
+        if (!onStage.has(step[kind])) problems.push(`${where}: ${step[kind]} isn't on stage`);
+        if (kind === 'remove') onStage.delete(step[kind]);
+        if (kind === 'act' && !poses.includes(step.pose)) problems.push(`${where}: unknown pose ${step.pose}`);
+      } else if (kind === 'sound' && !SOUNDS[step.sound]) {
+        problems.push(`${where}: unknown sound ${step.sound}`);
+      } else if (kind === 'tile' && !Object.values(LEVEL_TOKENS).includes(step.type)) {
+        problems.push(`${where}: unknown tile ${step.type}`);
+      }
+    });
+    assert(problems.length === 0, `story scene "${scene.id}" is well-formed${problems.length ? ` (${problems.join('; ')})` : ''}`);
+  });
+
+  assert(STORY_SCENES[0].id === 'opening' && !STORY_SCENES[0].after, 'the story opens with the prologue');
+  assert(THEMES.every((t) => STORY_SCENES.filter((s) => s.after === t).length === 1), 'every world has one cutscene');
+  assert(new Set(STORY_SCENES.map((s) => s.id)).size === STORY_SCENES.length, 'story scene ids are unique');
+  assert(storySceneAfterLevel('lava-12') === 'lava' && storySceneAfterLevel('grass-12') === 'grass',
+    "a world's cutscene follows its last level");
+  assert(storySceneAfterLevel('castle-12') === 'finale', 'the finale follows the last castle level');
+  assert(storySceneAfterLevel('lava-11') === null && storySceneAfterLevel('lava-08') === null,
+    'no cutscene after any other level');
+
+  const fresh = normalizeProgress({});
+  assert(shouldPlayOpening(fresh), 'a new game plays the prologue');
+  assert(!shouldPlayOpening(normalizeProgress({ story: ['opening'] })), 'the prologue plays by itself only once');
+  assert(!shouldPlayOpening(normalizeProgress({ levels: { 'lava-01': { moves: 5 } } })),
+    'a game already under way skips the prologue');
+  assert(isStoryUnlocked(fresh, 'opening') && !isStoryUnlocked(fresh, 'lava') && !isStoryUnlocked(fresh, 'finale'),
+    'at the start only the prologue can be rewatched');
+  assert(isStoryUnlocked(normalizeProgress({ levels: { 'lava-12': { moves: 5 } } }), 'lava'),
+    "beating a world's last level opens its cutscene");
+  assert(isStoryUnlocked(normalizeProgress({ story: ['ice'] }), 'ice'), 'a cutscene seen elsewhere stays rewatchable');
+
+  const seen = normalizeProgress({ story: ['lava', 'opening', 'lava', 7, ''] });
+  assert(JSON.stringify(seen.story) === JSON.stringify(['lava', 'opening']), 'seen cutscenes are kept sorted, once each');
+  const a = normalizeSave({ progress: { story: ['opening', 'lava'] } });
+  const b = normalizeSave({ progress: { story: ['ice'] } });
+  assert(JSON.stringify(mergeSaves(a, b).progress.story) === JSON.stringify(['ice', 'lava', 'opening']),
+    'merged saves keep cutscenes seen on either device');
+  assert(mergeSaves(normalizeSave({}), a, { campaignReset: true }).progress.story.length === 0,
+    'a campaign reset forgets the cutscenes too, so a new game starts with the prologue');
+
+  resetProgress();
+  markStorySeen('opening');
+  recordLevelComplete('lava-01', { moves: 5, timeMs: 1000, deaths: 0 });
+  assert(isStorySeen(loadProgress(), 'opening'), 'winning a level keeps the cutscenes seen');
+  resetProgress();
+}
+
+// A level beaten with no stats recorded keeps whatever the next win brings.
+{
+  resetProgress();
+  saveProgress(normalizeProgress({ levels: { 'lava-02': { moves: null, timeMs: null, deaths: null } } }));
+  const rec = recordLevelComplete('lava-02', { moves: 9, timeMs: 4000, deaths: 2 }).levels['lava-02'];
+  assert(rec.moves === 9 && rec.timeMs === 4000 && rec.deaths === 2, 'a win fills in a record that has no stats');
+  resetProgress();
+}
+
+// Badges (badges.js): one per world, earned by beating all of its levels.
+{
+  const allOf = (theme) => Object.fromEntries(themeLevels(theme).map((d) => [d.id, { moves: 1, timeMs: 1, deaths: 0 }]));
+  assert(BADGES.length === THEMES.length && THEMES.every((t) => badgeInfo(t) && BADGE_TEXTURES[t]),
+    'every world has a badge with art');
+  const fresh = normalizeProgress({});
+  assert(earnedBadges(fresh).length === 0, 'a new game has no badges');
+  const almost = normalizeProgress({ levels: allOf('lava') });
+  delete almost.levels['lava-07'];
+  assert(!isBadgeEarned(almost, 'lava'), 'a world with a level left unbeaten earns no badge');
+  const lavaDone = normalizeProgress({ levels: allOf('lava') });
+  assert(JSON.stringify(earnedBadges(lavaDone)) === JSON.stringify(['lava']), "beating every level of a world earns its badge");
+  assert(badgeEarnedByWin(almost, lavaDone) === 'lava', 'the win that finishes a world earns its badge');
+  assert(badgeEarnedByWin(lavaDone, lavaDone) === null, 'replaying a finished world earns nothing new');
+  const everything = normalizeProgress({ levels: Object.assign({}, ...THEMES.map(allOf)) });
+  assert(earnedBadges(everything).length === BADGES.length, 'beating the whole game earns every badge');
+  const merged = mergeSaves(normalizeSave({ progress: almost }), normalizeSave({ progress: { levels: { 'lava-07': { moves: 3 } } } }));
+  assert(isBadgeEarned(merged.progress, 'lava'), 'levels beaten on two devices add up to a badge');
+}
+
+// Creative Mode rooms (rooms.js) and timed rooms.
+{
+  const room = (fill) => ({ ...createEmptyLevel(4), theme: 'ice', tiles: new Array(16).fill(fill) });
+  const draft = room('empty');
+  const saved = normalizeRooms({ rooms: { a: { name: '  My   room ', level: draft, updatedAt: 5 } } });
+  assert(saved.rooms.a.name === 'My room' && saved.rooms.a.level.start === null && saved.rooms.a.level.theme === 'ice',
+    'a half-built room saves with its name tidied and no start or goal yet');
+  assert(cleanRoomName('') === 'Untitled room' && cleanRoomName('x'.repeat(80)).length === MAX_ROOM_NAME,
+    'room names are never blank or too long');
+  const junk = normalizeRooms({ rooms: { b: { name: 'x', level: { size: 3, tiles: [] }, updatedAt: 1 }, c: 'nope' } });
+  assert(Object.keys(junk.rooms).length === 0, 'malformed rooms are dropped');
+
+  const phone = { rooms: { a: { name: 'Old', level: draft, updatedAt: 5 }, b: { name: 'Keep', level: draft, updatedAt: 6 } }, deleted: {} };
+  const laptop = { rooms: { a: { name: 'New', level: room('wall'), updatedAt: 9 } }, deleted: { b: 8 } };
+  const merged = mergeRooms(phone, laptop);
+  assert(merged.rooms.a.name === 'New' && merged.rooms.a.level.tiles[0] === 'wall', "merging rooms keeps each room's newest edit");
+  assert(!merged.rooms.b && merged.deleted.b === 8, 'a room deleted on one device stays deleted');
+  const revived = mergeRooms(merged, { rooms: { b: { name: 'Edited later', level: draft, updatedAt: 12 } }, deleted: {} });
+  assert(revived.rooms.b && revived.rooms.b.name === 'Edited later', 'an edit made after a delete brings the room back');
+  assert(JSON.stringify(mergeRooms(phone, laptop)) === JSON.stringify(mergeRooms(laptop, phone)), 'merging rooms is order-independent');
+  const lostRooms = takeCloudSave(normalizeSave({ rooms: phone }), normalizeSave({ progress: { levels: { 'lava-01': { moves: 3 } } } }));
+  assert(lostRooms.rooms.rooms.a && lostRooms.progress.levels['lava-01'],
+    "taking the account's copy keeps this device's rooms when that copy has lost them");
+  assert(!takeCloudSave(normalizeSave({ rooms: phone }), normalizeSave({ rooms: laptop })).rooms.rooms.b,
+    "taking the account's copy still applies its deletes");
+  const cloudMerged = mergeSaves(normalizeSave({ rooms: phone }), normalizeSave({ rooms: laptop }));
+  assert(cloudMerged.rooms.rooms.a.name === 'New' && !cloudMerged.rooms.rooms.b, 'cloud saves carry and merge rooms');
+
+  localStorage.removeItem(ROOMS_KEY);
+  assert(putRoom('x1', 'First', draft, 100) && roomList(loadRooms())[0].name === 'First', 'putRoom saves a room to this device');
+  putRoom('x2', 'Second', draft, 200);
+  assert(roomList(loadRooms()).map((r) => r.id).join() === 'x2,x1', 'My Rooms lists the newest first');
+  deleteRoom('x1', 300);
+  assert(!loadRooms().rooms.x1 && loadRooms().deleted.x1 === 300, 'deleteRoom removes a room and remembers it was deleted');
+  for (let i = 0; i < MAX_ROOMS; i++) putRoom(`f${i}`, 'Filler', draft, 400 + i);
+  assert(putRoom('one-too-many', 'Nope', draft) === null, `My Rooms holds at most ${MAX_ROOMS} rooms`);
+  localStorage.removeItem(ROOMS_KEY);
+
+  assert(cleanTimeLimit(30) === 30 && cleanTimeLimit('45') === 45 && cleanTimeLimit(0) === 0 && cleanTimeLimit(-5) === 0 &&
+    cleanTimeLimit(99999) === 0 && cleanTimeLimit('abc') === 0, 'only a sane time limit counts');
+  const timed = { ...solvableLevel, timeLimit: 30 };
+  assert(decodeLevel(encodeLevel(timed)).timeLimit === 30, "a shared link keeps the room's time limit");
+  const fastest = fastestRunSeconds(solvableLevel);
+  assert(fastest === (solveBFS(solvableLevel).moves * HAZARD_TICK_MS) / 1000, "the fastest run is the bot's turns at one tick each");
+  assert(minFairTimeLimit(solvableLevel) === Math.ceil(fastest * 1.5 + 3), "the fairest limit Creative Mode allows follows the castle's rule");
+  assert(minFairTimeLimit(spikeBlockedLevel) === null, 'an unsolvable room has no fair limit');
+  assert(cleanRoomLevel({ ...timed, timeLimit: 3 }).timeLimit === undefined, 'a saved room drops a limit too short to be real');
 }
 
 restoreStorage();

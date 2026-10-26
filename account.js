@@ -106,6 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const profileNameEl = $('account-profile-name');
   const syncStatusEl = $('account-sync-status');
   const iconGridEl = $('account-icon-grid');
+  const badgesEl = $('account-badges');
+  const guestBadgesWrap = $('account-guest-badges-wrap');
+  const guestBadgesEl = $('account-guest-badges');
 
   // --- The panel ---------------------------------------------------------------
 
@@ -119,10 +122,19 @@ document.addEventListener('DOMContentLoaded', () => {
     titleEl.textContent = views[name].dataset.title;
     if (name === 'notice') noticeTextEl.textContent = notice;
     if (name === 'profile') renderProfile();
+    if (name === 'login') renderGuestBadges();
     setMessage('');
     modal.hidden = false;
     const first = views[name].querySelector('input, button');
     if (first) first.focus();
+  }
+
+  // A guest's chapter badges (badges.js), under the log-in form — only once
+  // they've earned one.
+  function renderGuestBadges() {
+    const progress = loadProgress();
+    guestBadgesWrap.hidden = earnedBadges(progress).length === 0;
+    if (!guestBadgesWrap.hidden) renderBadgeList(guestBadgesEl, progress);
   }
 
   function closeModal() {
@@ -315,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = readSyncState();
     const sameAccount = state.uid === signedIn.uid;
     let next;
-    if (sameAccount && !state.dirty) next = cloud; // nothing new here: the account's copy is newest
+    if (sameAccount && !state.dirty) next = takeCloudSave(readLocalSave(), cloud); // nothing new here: the account's copy is newest
     else if (state.uid && !sameAccount) next = cloud; // what's here belongs to a different account
     else next = mergeSaves(readLocalSave(), cloud, { campaignReset: sameAccount && state.campaignReset });
 
@@ -347,9 +359,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!views.profile.hidden) renderProfile();
       }
       const cloud = parseSave(data.save);
-      if (serializeSave(cloud) !== serializeSave(readLocalSave())) {
-        writeLocalSave(cloud);
+      const next = takeCloudSave(readLocalSave(), cloud);
+      if (serializeSave(next) !== serializeSave(readLocalSave())) {
+        writeLocalSave(next);
         refreshProgressViews();
+      }
+      // Rooms this device still had but the account had lost go back up.
+      if (serializeSave(next) !== serializeSave(cloud)) {
+        writeSyncState({ ...readSyncState(), dirty: true });
+        uploadNow();
       }
     } catch (err) {
       // offline: try again next time
@@ -531,6 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
     profileIconEl.style.backgroundImage = `url("${profileIconUrl(profile.icon)}")`;
     profileNameEl.textContent = profile.username;
     renderSyncStatus();
+    renderBadgeList(badgesEl);
     iconGridEl.innerHTML = '';
     PROFILE_ICONS.forEach((icon) => {
       const btn = document.createElement('button');

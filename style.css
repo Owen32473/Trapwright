@@ -67,47 +67,155 @@ h1 {
   gap: 22px;
   padding: 32px 16px;
   overflow: hidden;
-  background: linear-gradient(180deg, #14141a 0%, #1e1e26 55%, #0b0b0e 100%);
+  /* The view out of the workshop door (TITLE_SCREEN_TEXTURES.backdrop in
+     sprites.js, set by script.js), over its own top sky color. Anchored a
+     little below center so a wide window crops sky, not the forest. */
+  background-color: #07050e;
+  background-size: cover;
+  background-position: center 70%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
 }
 
 #title-screen[hidden] {
   display: none;
 }
 
+/* A soft shadow behind the logo and menu, so they read over the scene. */
 #title-screen::before {
   content: '';
   position: absolute;
   inset: 0;
-  background-image:
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.35) 0 2px, transparent 2px 40px),
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.25) 0 2px, transparent 2px 64px);
-  opacity: 0.5;
+  background: radial-gradient(ellipse 46% 52% at 50% 46%, rgba(6, 4, 12, 0.62), rgba(6, 4, 12, 0.18) 70%, transparent 100%);
   pointer-events: none;
 }
 
-.title-spikes {
+/* --- Title-screen decorations: the story's props, scattered over the scene */
+
+#title-decor {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: space-evenly;
-  align-items: flex-end;
-  padding: 0 4%;
+  inset: 0;
   pointer-events: none;
 }
 
-.title-spike {
-  width: 34px;
-  height: 54px;
-  background-repeat: no-repeat;
+/* Pages of the master's journal, drifting on the wind — the same page that
+   glows on the floor in the cutscenes. */
+.title-page {
+  position: absolute;
+  width: 48px;
+  height: 48px;
   background-size: 100% 100%;
   image-rendering: pixelated;
   opacity: 0.85;
+  filter: drop-shadow(0 0 6px rgba(255, 240, 200, 0.45));
+  animation: title-page-drift 9s ease-in-out infinite;
 }
 
-.title-spike-tall {
-  height: 76px;
+#title-page-1 { left: 13%; top: 24%; }
+#title-page-2 { right: 11%; top: 66%; animation-duration: 11s; animation-delay: -4s; }
+#title-page-3 { right: 24%; top: 13%; width: 36px; height: 36px; animation-duration: 13s; animation-delay: -7s; opacity: 0.6; }
+
+@keyframes title-page-drift {
+  0%, 100% { transform: translate(0, 0) rotate(-8deg); }
+  35% { transform: translate(10px, -14px) rotate(5deg); }
+  70% { transform: translate(-6px, -4px) rotate(-2deg); }
+}
+
+/* You, the apprentice, at the head of the path. */
+#title-hero {
+  position: absolute;
+  left: 50%;
+  bottom: 3%;
+  width: 36px;
+  height: 42px;
+  margin-left: -18px;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 6px rgba(255, 160, 80, 0.35));
+  animation: title-hero-bob 1.4s ease-in-out infinite;
+}
+
+@keyframes title-hero-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* Embers rising off the volcano (left), fireflies over the forest (bottom).
+   Filled by scatterParticles in script.js. */
+#title-embers,
+#title-fireflies {
+  position: absolute;
+}
+
+#title-embers {
+  left: 2%;
+  width: 36%;
+  top: 20%;
+  bottom: 28%;
+}
+
+#title-fireflies {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22%;
+}
+
+#title-embers i,
+#title-fireflies i {
+  position: absolute;
+  left: var(--x);
+  width: var(--s);
+  height: var(--s);
+}
+
+#title-embers i {
+  bottom: 0;
+  background: #ffb347;
+  box-shadow: 0 0 6px #ff7a1f;
+  animation: title-ember-rise var(--t) linear var(--d) infinite;
+}
+
+#title-embers i:nth-child(3n) {
+  background: #ffe066;
+}
+
+@keyframes title-ember-rise {
+  0% { transform: translate(0, 0); opacity: 0; }
+  12% { opacity: 0.9; }
+  100% { transform: translate(var(--o), -48vh); opacity: 0; }
+}
+
+#title-fireflies i {
+  top: var(--y);
+  background: #fff27a;
+  box-shadow: 0 0 8px 2px rgba(216, 240, 128, 0.6);
+  animation:
+    title-firefly-wander var(--t) ease-in-out var(--d) infinite alternate,
+    title-firefly-blink 2.6s ease-in-out var(--d) infinite;
+}
+
+@keyframes title-firefly-wander {
+  from { transform: translate(0, 0); }
+  to { transform: translate(var(--o), -18px); }
+}
+
+@keyframes title-firefly-blink {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-page,
+  #title-hero,
+  #title-embers i,
+  #title-fireflies i {
+    animation: none;
+  }
+
+  #title-embers {
+    display: none;
+  }
 }
 
 .title-torch {
@@ -123,11 +231,11 @@ h1 {
 }
 
 #title-torch-left {
-  left: 6%;
+  left: 5%;
 }
 
 #title-torch-right {
-  right: 6%;
+  right: 5%;
 }
 
 @keyframes title-torch-flicker {
@@ -165,21 +273,92 @@ h1 {
   display: block;
 }
 
+/* The prologue's closing title card, word for word (see STORY_SCENES'
+   opening in story.js), in the cutscenes' chapter-card style. */
 #title-tagline {
   margin: 0;
-  color: #b7b7c2;
-  font-size: 0.95rem;
+  color: #cfc8e0;
+  font-style: italic;
+  font-size: 1rem;
   letter-spacing: 1px;
+  text-shadow: 0 2px 0 #000, 0 0 8px #000;
 }
 
 #title-menu {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: min(86vw, 320px);
 }
 
-/* .pixel-btn is the same riveted-plate look applied to every "chrome"
+/* The home menu: .title-btn's gilt big brother — a heavier frame
+   (--menu-frame, see makeMenuFrame in sprites.js; 4px slices drawn at 3x,
+   12px in over the padding) around a two-tone face, the label in the
+   logo's and cutscenes' outlined monospace, and the button's icon at its
+   left. */
+#title-menu .title-btn {
+  position: relative;
+  border-image: var(--menu-frame) 4 / 12px;
+  background: linear-gradient(#3a2e42 0 45%, #2a2131 45% 100%);
+  padding: 16px 64px;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  font-size: 1.05rem;
+  letter-spacing: 2px;
+  color: #f4e6b8;
+  text-shadow:
+    -1px 0 0 #000, 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000,
+    0 2px 0 #000;
+}
+
+#title-menu .title-btn:hover,
+#title-menu .title-btn:focus-visible {
+  background: linear-gradient(#4a3b54 0 45%, #362a3f 45% 100%);
+  filter: none;
+}
+
+/* Play: the forge's own color, glowing. */
+#title-menu .title-btn-primary {
+  background: linear-gradient(#6a2c1a 0 45%, #4e1e12 45% 100%);
+  color: #fff3c4;
+  box-shadow: 0 0 18px rgba(255, 122, 31, 0.4);
+  animation: title-play-glow 2.4s ease-in-out infinite;
+}
+
+#title-menu .title-btn-primary:hover,
+#title-menu .title-btn-primary:focus-visible {
+  background: linear-gradient(#7e3620 0 45%, #5e2616 45% 100%);
+}
+
+@keyframes title-play-glow {
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 122, 31, 0.3); }
+  50% { box-shadow: 0 0 24px rgba(255, 140, 50, 0.55); }
+}
+
+.title-btn-icon {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  margin-top: -16px;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  transition: transform 0.15s ease;
+}
+
+#title-menu .title-btn:hover .title-btn-icon,
+#title-menu .title-btn:focus-visible .title-btn-icon {
+  transform: translateY(-3px) scale(1.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #title-menu .title-btn-primary {
+    animation: none;
+  }
+}
+
+/* .pixel-btn is the same framed-plate look applied to every "chrome"
    button on the game page (Enter Builder Mode, Validate, Reset, the daily
    mode buttons, etc.) — see index.html — so leaving the title screen for
    Play/Daily/Builder doesn't hand the player a visually unrelated set of
@@ -192,11 +371,14 @@ h1 {
    `button:not(.tile)` is *more* specific than a plain one-class selector
    like .title-btn ever was, and had been quietly winning the cascade for
    every property the two rules both set).
-   background-image reads a CSS custom property (--plate-texture, set once
-   in script.js) rather than a per-element inline style, so a later,
-   more-specific override can still reset it back to `none` through the
-   normal cascade — an inline style, once set, can never be un-overridden
-   that way. */
+   The look is two layers. The bronze trim is a 9-slice border-image
+   (--plate-frame — makeButtonFrame in sprites.js — set once in script.js
+   rather than as a per-element inline style, so the normal cascade can
+   still override it; an inline style, once set, never can be), drawn 9px
+   in over the padding with no real border, so the frame never changes a
+   button's size. The face under it is a plain background, so an override
+   that sets `background` (a destructive button's red) recolors the face
+   inside the same frame. */
 .title-btn,
 .pixel-btn {
   -webkit-appearance: none;
@@ -215,19 +397,18 @@ h1 {
   min-width: 130px;
   /* Extra horizontal breathing room vs. the title screen's own 18px —
      the longest label in the app ("Back to Daily Puzzle") was reading as
-     nearly edge-to-edge against the plate art's own drawn bevel/rivets,
-     which sit inset from the button's true CSS box edge, not flush with
-     it — so text that merely clears the box edge can still visually
-     crowd the plate's face at that length. */
+     nearly edge-to-edge against the frame, which is drawn 9px in from
+     the button's true CSS box edge, not flush with it — so text that
+     merely clears the box edge can still visually crowd the frame at that
+     length. */
   padding: 14px 22px;
-  border: none;
+  border-image: var(--plate-frame) 3 / 9px;
+  /* Hides the face behind the frame's cut-off corner pixels. */
   border-radius: 3px;
-  background-color: transparent;
+  background-color: #2a2131;
+  background-image: linear-gradient(#3a2e42 0 30%, transparent 30%);
   color: #f4e6b8;
   text-shadow: 1px 1px 0 #000;
-  background-image: var(--plate-texture);
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
   image-rendering: pixelated;
   cursor: pointer;
   transition: transform 0.08s ease, filter 0.15s ease;
@@ -252,7 +433,7 @@ h1 {
 
 .title-btn-primary {
   color: #fff3c4;
-  box-shadow: 0 0 0 2px #c23b3b inset;
+  box-shadow: 0 0 14px rgba(255, 122, 31, 0.35);
 }
 
 #title-sign {
@@ -300,8 +481,9 @@ h1 {
   display: none;
 }
 
+/* The cutscenes' caption box: a dark plum card with a faint gilt edge. */
 .title-modal-card {
-  background: #26262e;
+  background: #1c1722;
   border: 2px solid #000;
   border-radius: 10px;
   padding: 24px 28px;
@@ -311,12 +493,18 @@ h1 {
      rather than overflowing short viewports. */
   max-height: calc(100vh - 32px);
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(216, 168, 80, 0.3), 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
+/* The logo's outlined wordmark, smaller. */
 .title-modal-card h2 {
   margin: 0 0 14px;
-  color: #d4af37;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #e8c04a;
+  text-shadow: -1px 0 0 #000, 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000, 0 3px 0 #000;
 }
 
 .title-modal-card p,
@@ -328,6 +516,56 @@ h1 {
 .title-modal-card ul {
   margin: 0 0 18px;
   padding-left: 20px;
+}
+
+.title-modal-card h3 {
+  margin: 16px 0 6px;
+  color: #d4af37;
+  font-size: 1rem;
+}
+
+.howto-steps {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+
+.howto-steps li {
+  margin-bottom: 8px;
+}
+
+.howto-tip {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: #bbb;
+}
+
+.title-modal-card details {
+  border: 1px solid #444;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  padding: 0 12px;
+}
+
+.title-modal-card summary {
+  cursor: pointer;
+  padding: 8px 0;
+  color: #f4e6b8;
+  font-weight: bold;
+}
+
+.title-modal-card details[open] summary {
+  border-bottom: 1px solid #444;
+  margin-bottom: 8px;
+}
+
+.title-modal-card details ul {
+  margin-bottom: 10px;
+}
+
+.credits-title {
+  font-size: 1.2rem;
+  color: #f4e6b8;
+  margin: 0 0 6px;
 }
 
 .title-modal-card .title-btn {
@@ -358,10 +596,12 @@ h1 {
    both declare the same property, or the specificity trap is back. The
    one non-.pixel-btn button left (#trash-can, a .palette-item) supplies
    its own full look, so it only needs this bare reset underneath it.
-   #home-btn's own rule (below) covers its fixed positioning. */
+   #home-btn's own rule (below) covers its fixed positioning.
+   border-style, not the `border` shorthand: the shorthand also resets
+   border-image, which would wipe .pixel-btn's frame. */
 button:not(.tile) {
   font: inherit;
-  border: none;
+  border-style: none;
   cursor: pointer;
 }
 
@@ -416,30 +656,123 @@ button:not(.tile) {
 
 /* --- Daily Puzzle hub -------------------------------------------------- */
 
+/* A dark glass card in the day's world's colors (--theme-accent/glow),
+   so that world's backdrop and #ambient show around and through it, with
+   a banner of the world itself on top (renderDailyHubBanner). */
 #daily-hub {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  background: #26262e;
+  background: rgba(12, 9, 18, 0.86);
   border: 2px solid #000;
   border-radius: 10px;
-  padding: 20px 24px;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--theme-accent) 35%, transparent),
+    0 0 32px 4px var(--theme-glow);
+  padding: 0 24px 20px;
   width: min(90vw, 560px);
   text-align: center;
+  overflow: hidden;
 }
 
 #daily-hub[hidden] {
   display: none;
 }
 
-#daily-hub h2 {
+/* The world's backdrop, cropped to its mountains, over a row of its tiles. */
+#daily-hub-banner {
+  position: relative;
+  align-self: stretch;
+  margin: 0 -24px 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background-size: cover;
+  /* High enough to catch each scene's sky and peaks: the volcano's crater,
+     the aurora, the moon over the castle, the temple's top. */
+  background-position: center 22%;
+  image-rendering: pixelated;
+  border-bottom: 2px solid #000;
+}
+
+/* Lit from below in the world's own color. */
+#daily-hub-title {
+  padding: 44px 12px 14px;
+  background:
+    radial-gradient(ellipse 60% 90% at 50% 100%, color-mix(in srgb, var(--theme-accent) 24%, transparent), transparent 70%),
+    linear-gradient(transparent, rgba(6, 4, 10, 0.45));
+}
+
+#daily-hub-banner h2 {
   margin: 0;
-  font-size: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+#daily-hub-kicker {
+  font-size: 0.75rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #f4e6b8;
+  text-shadow: 0 1px 0 #000, 0 0 6px #000;
+}
+
+/* The world's name in the cutscenes' chapter-card wordmark. */
+#daily-hub-world {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-size: clamp(1.15rem, 4.6vw, 1.7rem);
+  color: var(--theme-accent);
+  text-shadow:
+    -2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000,
+    0 4px 0 #000, 0 0 14px color-mix(in srgb, var(--theme-accent) 40%, transparent);
 }
 
 #daily-hub-date {
-  color: #b7b7c2;
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #cfc8e0;
+  text-shadow: 0 1px 0 #000;
+  font-variant-numeric: tabular-nums;
+}
+
+#daily-hub-strip {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  border-top: 2px solid #000;
+}
+
+#daily-hub-strip span {
+  aspect-ratio: 1 / 1;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+
+/* Standing on the first tile. */
+#daily-hub-strip .daily-hub-hero {
+  position: absolute;
+  left: calc(100% / 120);
+  bottom: 4%;
+  width: calc(100% / 15);
+  aspect-ratio: 12 / 14;
+  background-size: 100% 100%;
+  animation: title-hero-bob 1.4s ease-in-out infinite;
+}
+
+#daily-hub-theme {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--theme-accent);
+}
+
+#daily-hub-theme[hidden] {
+  display: none;
 }
 
 #daily-hub-streak {
@@ -467,8 +800,13 @@ button:not(.tile) {
 
 .daily-hub-column h3 {
   margin: 0;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
   font-size: 1rem;
-  color: #b7b7c2;
+  color: var(--theme-accent);
+  text-shadow: 0 2px 0 #000;
 }
 
 .daily-hub-hint {
@@ -477,13 +815,11 @@ button:not(.tile) {
   color: #b7b7c2;
 }
 
-/* A translucent green wash layered over the *same* riveted plate texture
-   (not `background: <green>`, which would win over .pixel-btn's
-   background-image via the shorthand and replace the plate art with a
-   flat color rectangle — visibly "a different button model" for a
-   completed challenge, which is exactly the look this replaced). An inset
-   box-shadow paints above the background but below the button's own text,
-   so the plate's bevel/rivets and the label stay legible, just tinted. */
+/* A translucent green wash over the *same* face (not `background:
+   <green>`, which would also drop the face's lit top band — a completed
+   challenge is still the same button, just done). An inset box-shadow
+   paints above the background but below the frame and the label, so both
+   stay crisp, just on a green-tinted face. */
 .daily-mode-btn.completed {
   box-shadow: inset 0 0 0 999px rgba(46, 139, 87, 0.55);
 }
@@ -617,7 +953,7 @@ button.tile {
    never fight over the same property on one element. */
 /* .player-slide is the outermost player layer: it fills the tile and is
    what solver mode animates (Web Animations API, see slideKeyframes in
-   script.js) to glide the player across ice, currents, and portals. */
+   script.js) to glide the player from tile to tile on every move. */
 .player-slide {
   position: absolute;
   inset: 0;
@@ -629,6 +965,36 @@ button.tile {
    player isn't drawn underneath tiles that come later in the grid. */
 .tile.tile-has-slider {
   z-index: 4;
+}
+
+/* The ground's stance (see TERRAIN_ANIMATIONS in script.js), layered over
+   whatever pose the player is in: its own transform, between the glide
+   and the facing flip. */
+.player-terrain {
+  position: absolute;
+  inset: 0;
+}
+
+/* On ground that's about to give way: teetering from foot to foot. */
+.player-terrain.terrain-wobble {
+  transform-origin: 50% 95%;
+  animation: terrain-wobble 0.32s ease-in-out infinite alternate;
+}
+
+@keyframes terrain-wobble {
+  from { transform: rotate(-7deg) translateX(-3%); }
+  to { transform: rotate(7deg) translateX(3%); }
+}
+
+/* On frostbite: shivering, with a cold glow. */
+.player-terrain.terrain-shiver {
+  filter: saturate(0.7) drop-shadow(0 0 2px rgba(170, 220, 255, 0.9));
+  animation: terrain-shiver 0.08s steps(2) infinite alternate;
+}
+
+@keyframes terrain-shiver {
+  from { transform: translateX(-3%); }
+  to { transform: translateX(3%); }
 }
 
 .player-sprite {
@@ -770,6 +1136,21 @@ button.tile {
   image-rendering: pixelated;
 }
 
+/* Wraps a moving hazard (imp, boar, fireball) while it glides into its
+   new tile (see glideOverlay in script.js), so the sprite's own animation
+   keeps its transform. Its tile is lifted so the glide isn't painted
+   under the neighbor it's coming from. */
+.hazard-mover {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.tile.tile-has-mover {
+  z-index: 3;
+}
+
 .hazard-flame {
   animation: hazard-flicker 0.18s steps(2) infinite alternate;
 }
@@ -843,9 +1224,23 @@ button.tile {
 #builder-panel-toggle {
   position: fixed;
   top: 16px;
-  /* Left of #account-btn, which holds the corner. */
-  right: 76px;
+  /* Left of #mute-btn and #account-btn, which hold the corner. */
+  right: 136px;
   z-index: 21;
+}
+
+/* Sound on/off: the same square plate as #account-btn, just left of it. */
+#mute-btn {
+  position: fixed;
+  top: 16px;
+  right: 76px;
+  z-index: 120;
+  width: 50px;
+  height: 50px;
+  min-width: 0;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
 }
 
 #builder-panel-toggle[hidden] {
@@ -1025,6 +1420,31 @@ button.tile {
   color: #d4af37;
 }
 
+/* Star rating on the win card: three big stars, then what par was. */
+#win-modal-stars {
+  margin: 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+#win-modal-stars[hidden] {
+  display: none;
+}
+
+.star-row {
+  font-size: 2.2rem;
+  letter-spacing: 6px;
+  color: #ffcf4d;
+  text-shadow: 0 0 8px rgba(255, 207, 77, 0.6), 0 2px 0 #000;
+}
+
+.star-note {
+  font-size: 0.85rem;
+  color: #ccc;
+}
+
 #win-modal-stats {
   margin: 0 0 20px;
   font-variant-numeric: tabular-nums;
@@ -1056,21 +1476,48 @@ button.tile {
     letter-spacing: 2px;
   }
 
+  /* A phone sees only the middle of the scene — the doorway they'd hang
+     on is cropped off — so the torches go. */
   .title-torch {
-    width: 30px;
-    height: 54px;
+    display: none;
   }
 
-  .title-spike {
-    width: 20px;
-    height: 34px;
+  .title-page {
+    width: 36px;
+    height: 36px;
   }
 
-  .title-spike-tall {
-    height: 46px;
-  }
+  #title-page-1 { left: 6%; top: 12%; }
+  #title-page-2 { right: 5%; top: 78%; }
+  #title-page-3 { display: none; }
 
   #title-sign {
+    display: none;
+  }
+}
+
+/* Short windows: a smaller logo and slimmer menu buttons, so the whole
+   menu still fits (the title screen doesn't scroll). */
+@media (max-height: 640px) {
+  #title-screen {
+    gap: 14px;
+    padding: 16px;
+  }
+
+  #title-content {
+    gap: 12px;
+  }
+
+  #title-logo {
+    font-size: clamp(2rem, 7vh, 3rem);
+  }
+
+  #title-menu .title-btn {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  #title-hero {
     display: none;
   }
 }
@@ -1103,6 +1550,185 @@ body[data-theme="grass"] {
   background-color: #07120b;
   --theme-accent: #9fd35a;
   --theme-glow: rgba(143, 208, 90, 0.2);
+}
+
+body[data-theme="castle"] {
+  background-color: #07060f;
+  --theme-accent: #c9b8ff;
+  --theme-glow: rgba(201, 184, 255, 0.2);
+}
+
+/* --- The Daily Puzzle's world layer (#ambient) ------------------------------
+
+   On the Daily Puzzle's screens (body[data-ambient], see setAmbient in
+   script.js) the day's world moves all around the page, between its
+   backdrop and everything else: embers rise in the Volcanic Depths, snow
+   falls in the Frozen Caverns, fireflies drift and leaves fall in the
+   Overgrown Ruins, and fog and dust roll through the Abandoned Castle,
+   each over a wash of that world's light. The particles are square, like
+   pixels, and scattered by scatterParticles. z-index -1 puts the layer
+   above the body's backdrop (the page background) but under the page. */
+#ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  display: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+body[data-ambient] #ambient {
+  display: block;
+}
+
+#ambient::before,
+#ambient::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+#ambient i {
+  position: absolute;
+  left: var(--x);
+  width: var(--s);
+  height: var(--s);
+}
+
+/* Volcanic Depths: the forge-glow from below, and embers. */
+body[data-ambient="lava"] #ambient::before {
+  background: radial-gradient(ellipse 80% 45% at 50% 105%, rgba(255, 110, 30, 0.3), transparent 70%);
+  animation: ambient-pulse 4s ease-in-out infinite;
+}
+
+body[data-ambient="lava"] #ambient i {
+  bottom: -8px;
+  background: #ffb347;
+  box-shadow: 0 0 6px #ff7a1f;
+  animation: ambient-rise var(--t) linear var(--d) infinite;
+}
+
+body[data-ambient="lava"] #ambient i:nth-child(3n) {
+  background: #ffe066;
+}
+
+/* Frozen Caverns: a cold mist at the floor, and falling snow. */
+body[data-ambient="ice"] #ambient::before {
+  background:
+    linear-gradient(to top, rgba(150, 215, 255, 0.18), transparent 40%),
+    linear-gradient(to bottom, rgba(200, 235, 255, 0.08), transparent 25%);
+}
+
+body[data-ambient="ice"] #ambient i {
+  top: -8px;
+  background: #e6f6ff;
+  opacity: 0.85;
+  animation: ambient-fall calc(var(--t) * 1.3) linear var(--d) infinite;
+}
+
+body[data-ambient="ice"] #ambient i:nth-child(4n) {
+  background: #a8dcff;
+}
+
+/* Overgrown Ruins: a green haze, fireflies, and the odd falling leaf. */
+body[data-ambient="grass"] #ambient::before {
+  background: radial-gradient(ellipse 90% 50% at 50% 100%, rgba(120, 200, 80, 0.2), transparent 70%);
+}
+
+body[data-ambient="grass"] #ambient i {
+  top: var(--y);
+  background: #fff27a;
+  box-shadow: 0 0 8px 2px rgba(216, 240, 128, 0.55);
+  animation:
+    ambient-wander var(--t) ease-in-out var(--d) infinite alternate,
+    ambient-blink 2.6s ease-in-out var(--d) infinite;
+}
+
+body[data-ambient="grass"] #ambient i:nth-child(4n) {
+  top: -8px;
+  background: #5fa83a;
+  box-shadow: none;
+  animation: ambient-leaf calc(var(--t) * 1.4) linear var(--d) infinite;
+}
+
+/* Abandoned Castle: banks of fog rolling past, and drifting dust. */
+body[data-ambient="castle"] #ambient::before,
+body[data-ambient="castle"] #ambient::after {
+  inset: auto -50% 0 -50%;
+  height: 45%;
+  background:
+    radial-gradient(ellipse 22% 40% at 20% 70%, rgba(201, 184, 255, 0.14), transparent 70%),
+    radial-gradient(ellipse 26% 45% at 55% 80%, rgba(180, 170, 230, 0.12), transparent 70%),
+    radial-gradient(ellipse 20% 35% at 85% 65%, rgba(201, 184, 255, 0.12), transparent 70%);
+  animation: ambient-fog 40s ease-in-out infinite alternate;
+}
+
+body[data-ambient="castle"] #ambient::after {
+  bottom: 18%;
+  opacity: 0.7;
+  animation-duration: 64s;
+  animation-direction: alternate-reverse;
+}
+
+body[data-ambient="castle"] #ambient i {
+  top: var(--y);
+  background: #c9b8ff;
+  opacity: 0;
+  animation: ambient-mote calc(var(--t) * 1.5) ease-in-out var(--d) infinite;
+}
+
+@keyframes ambient-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+@keyframes ambient-rise {
+  0% { transform: translate(0, 0); opacity: 0; }
+  10% { opacity: 0.9; }
+  100% { transform: translate(var(--o), -105vh); opacity: 0; }
+}
+
+@keyframes ambient-fall {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(var(--o), 105vh); }
+}
+
+@keyframes ambient-leaf {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(var(--o), 52vh) rotate(180deg); }
+  100% { transform: translate(0, 105vh) rotate(360deg); }
+}
+
+@keyframes ambient-wander {
+  from { transform: translate(0, 0); }
+  to { transform: translate(var(--o), -40px); }
+}
+
+@keyframes ambient-blink {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 1; }
+}
+
+@keyframes ambient-fog {
+  from { transform: translateX(-16%); }
+  to { transform: translateX(16%); }
+}
+
+@keyframes ambient-mote {
+  0%, 100% { transform: translate(0, 0); opacity: 0; }
+  50% { transform: translate(var(--o), -60px); opacity: 0.6; }
+}
+
+/* Still light, no movement. */
+@media (prefers-reduced-motion: reduce) {
+  #ambient i {
+    display: none;
+  }
+
+  #ambient::before,
+  #ambient::after {
+    animation: none;
+  }
 }
 
 .text-btn {
@@ -1141,6 +1767,54 @@ body[data-theme="grass"] {
 
 #theme-select {
   width: min(94vw, 560px);
+  /* Switching worlds slides the old one out and the new one in (see
+     showTheme in script.js); the panel clips them so they slide out of
+     view at its edges rather than across the rest of the page. */
+  overflow: hidden;
+}
+
+/* The two parts of a world that slide: its card, and its name, status and
+   progress bar. Each slot is where a departing copy (.world-slide-ghost)
+   sits while it slides away. */
+#theme-card-slot,
+#theme-info-slot {
+  position: relative;
+}
+
+#theme-info-slot {
+  width: 100%;
+}
+
+#theme-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Scoped under the slots so it outranks the copied element's own id
+   rules (#theme-card sets position: relative) — the copy keeps its ids. */
+#theme-card-slot > .world-slide-ghost,
+#theme-info-slot > .world-slide-ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+/* The page backdrop sliding with the world: the departing and arriving
+   backdrops, laid out exactly like body's own (cover, anchored bottom,
+   fixed to the viewport) and behind all of the page's content. */
+.world-slide-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-size: cover;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
 }
 
 #theme-select[hidden],
@@ -1232,6 +1906,8 @@ body[data-theme="grass"] {
 #theme-status {
   margin: 0;
   color: #e6e6ee;
+  /* The castle's locked status runs over two lines. */
+  white-space: pre-line;
 }
 
 #theme-progress {
@@ -1321,7 +1997,7 @@ body[data-theme="grass"] {
 
 #level-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 10px;
   width: 100%;
 }
@@ -1334,11 +2010,11 @@ body[data-theme="grass"] {
   gap: 3px;
   min-height: 100px;
   padding: 12px 6px;
+  /* The buttons' frame and face (see .pixel-btn). */
+  border-image: var(--plate-frame) 3 / 9px;
   border-radius: 3px;
-  background-color: transparent;
-  background-image: var(--plate-texture);
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
+  background-color: #2a2131;
+  background-image: linear-gradient(#3a2e42 0 30%, transparent 30%);
   image-rendering: pixelated;
   color: #f4e6b8;
   text-shadow: 1px 1px 0 #000;
@@ -1385,9 +2061,20 @@ body[data-theme="grass"] {
   color: var(--theme-accent);
 }
 
+.level-plate-stars {
+  min-height: 1em;
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  color: #ffcf4d;
+}
+
+.level-plate-stars.none {
+  color: #777;
+}
+
 @media (max-width: 560px) {
   #level-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -1500,11 +2187,80 @@ body[data-theme="grass"] {
 .tile-thinice { background: #bfe3f5; }
 .tile-frost { background: #a3bdd6; }
 .tile-snapjaw { background: #4a4f40; }
+.tile-crusher,
+.tile-plate,
+.tile-gate,
+.tile-ghost { background: #57525e; }
+
+/* The ghost drifts and flickers. */
+.hazard-ghost {
+  inset: 2%;
+  opacity: 0.85;
+  animation: ghost-flicker 1.1s ease-in-out infinite;
+}
+
+@keyframes ghost-flicker {
+  0%, 100% { transform: translateY(0); opacity: 0.85; }
+  50% { transform: translateY(-8%); opacity: 0.6; }
+}
+
+/* A crusher slamming: the block drops in from above. */
+.hazard-crush {
+  z-index: 3;
+  animation: icicle-drop 0.15s ease-in 1 forwards;
+}
 .tile-icicle,
 .tile-vines,
 .tile-mushroom,
 .tile-boar-h,
 .tile-boar-v { background: #4a4038; }
+
+/* Thin ice creaks under the player standing on it. */
+.tile.thinice-underfoot {
+  animation: icicle-wobble 0.18s steps(2) infinite alternate;
+}
+
+/* Thin ice caving in once the player steps off: the intact slab shudders,
+   sinks and fades, leaving the broken tile underneath. `both` holds the
+   slab in place until its delay runs out (the player is still gliding
+   towards the edge). */
+.hazard-sprite.ice-collapse {
+  animation: ice-collapse 0.45s ease-in 1 both;
+}
+
+@keyframes ice-collapse {
+  0% { transform: none; opacity: 1; filter: brightness(1); }
+  25% { transform: translateX(-4%) rotate(-3deg); }
+  50% { transform: translate(4%, 4%) rotate(3deg) scale(0.9); opacity: 1; filter: brightness(0.85); }
+  100% { transform: translateY(14%) scale(0.5); opacity: 0; filter: brightness(0.5); }
+}
+
+/* A lever just thrown: a quick bright pop. */
+.tile.lever-flipped {
+  animation: lever-pop 0.3s ease-out 1;
+}
+
+@keyframes lever-pop {
+  0% { filter: brightness(1); }
+  30% { filter: brightness(1.9) saturate(1.4); }
+  100% { filter: brightness(1); }
+}
+
+/* The exit while any lever is off: barred, and without the gem's pulse. */
+.tile.tile-goal.goal-locked {
+  animation: none;
+  filter: saturate(0.7);
+}
+
+/* The moment the last lever goes on: the bars vanish in a flash. */
+.tile.tile-goal.goal-unlocked {
+  animation: goal-open 0.6s ease-out 1;
+}
+
+@keyframes goal-open {
+  0% { filter: brightness(2.6) saturate(1.5); box-shadow: inset 0 0 18px #fff6d8; }
+  100% { filter: brightness(1); box-shadow: none; }
+}
 
 /* A shaking icicle wobbles until it falls. */
 .tile.icicle-shaking {
@@ -1679,8 +2435,8 @@ body[data-theme="grass"] {
   color: #e8c04a;
 }
 
-/* Destructive, like #clear-all-confirm-btn: a flat red instead of the
-   plate (the shorthand drops .pixel-btn's background-image). */
+/* Destructive, like #clear-all-confirm-btn: a flat red face in the usual
+   frame (the shorthand drops .pixel-btn's face gradient). */
 #account-delete-btn {
   background: #b0262d;
 }
@@ -1779,4 +2535,943 @@ body[data-theme="grass"] {
 #account-icon-grid .account-icon-choice:focus-visible {
   outline: 3px solid #4aa3ff;
   outline-offset: 2px;
+}
+
+/* --- Touch controls ------------------------------------------------------------ */
+
+/* While a room is being played, swipes on the grid (and presses on the
+   D-pad) are moves, never page scrolls or zooms. */
+body.playing #grid,
+#dpad {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body.playing {
+  overscroll-behavior: none;
+}
+
+/* The on-screen arrow pad: only on touch screens (no hover, coarse
+   pointer), and only while playing (startSolverMode un-hides it). A plus
+   shape — up on top, left/right in the middle, down below. */
+#dpad {
+  display: none;
+}
+
+/* Empty feedback lines still take their margins; while playing, drop them
+   so the room and the pad fit on one phone screen. */
+body.playing #validate-result:empty,
+body.playing #daily-builder-result:empty {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  #dpad:not([hidden]) {
+    display: grid;
+    grid-template-columns: repeat(3, 58px);
+    grid-template-rows: repeat(3, 44px);
+    gap: 4px;
+    margin: 10px auto 0;
+  }
+
+  #dpad button {
+    min-width: 0;
+    padding: 0;
+    font-size: 1.4rem;
+  }
+
+  #dpad [data-dir="up"] { grid-area: 1 / 2; }
+  #dpad [data-dir="left"] { grid-area: 2 / 1; }
+  #dpad [data-dir="right"] { grid-area: 2 / 3; }
+  #dpad [data-dir="down"] { grid-area: 3 / 2; }
+
+  /* Leave room under the grid for the pad: the grid gets whatever height
+     the header, stats, pad and hint line don't need (never below 200px). */
+  body.playing #grid {
+    width: max(200px, min(94vw, calc(100dvh - 482px), 560px));
+  }
+
+  body.playing #solver-stats {
+    margin: 8px 0;
+  }
+
+  body.playing #solver-message {
+    margin: 8px 0;
+  }
+}
+
+/* --- Story cutscenes (story.js) ------------------------------------------ */
+
+/* Over everything, the account and mute buttons included: a cutscene takes
+   the whole screen until it ends or is skipped. */
+#cutscene {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 72px 16px 16px;
+  background: #050408;
+  --cs-accent: #ffb347;
+}
+
+#cutscene[hidden] {
+  display: none;
+}
+
+#cutscene[data-theme="ice"] { --cs-accent: #7fdcff; }
+#cutscene[data-theme="grass"] { --cs-accent: #9fd35a; }
+#cutscene[data-theme="castle"] { --cs-accent: #c9b8ff; }
+
+.cs-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* The stage is 2:1; leave the caption room below it. */
+  width: min(100%, 760px, calc((100dvh - 230px) * 2));
+}
+
+.cs-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
+  border: 4px solid #000;
+  border-radius: 4px;
+  box-shadow: 0 0 40px 6px color-mix(in srgb, var(--cs-accent) 18%, transparent);
+  cursor: pointer;
+}
+
+.cs-stage.cs-shaking {
+  animation: cs-shake 0.12s linear infinite;
+}
+
+@keyframes cs-shake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1.5%, 1%); }
+  75% { transform: translate(1.5%, -1%); }
+}
+
+.cs-tiles {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cs-cols), 1fr);
+  grid-template-rows: repeat(var(--cs-rows), 1fr);
+}
+
+.cs-tile {
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+
+.cs-entities {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cs-entity {
+  position: absolute;
+  width: calc(100% / var(--cs-cols));
+  height: calc(100% / var(--cs-rows));
+  transition: opacity 0.4s;
+  z-index: 1;
+}
+
+.cs-actor {
+  z-index: 2;
+}
+
+.cs-actor.facing-left {
+  transform: scaleX(-1);
+}
+
+/* Same inset and stretch as the in-game .player-sprite, so the characters
+   look exactly as they do in the rooms. */
+.cs-sprite {
+  position: absolute;
+  inset: 4%;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+
+.cs-prop .cs-sprite {
+  inset: 0;
+  background-size: contain;
+  background-position: center;
+}
+
+.cs-torch .cs-sprite {
+  animation: cs-torch-flicker 1.3s ease-in-out infinite;
+}
+
+@keyframes cs-torch-flicker {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 4px rgba(255, 160, 60, 0.7)); }
+  50% { filter: brightness(1.25) drop-shadow(0 0 9px rgba(255, 160, 60, 0.9)); }
+}
+
+.cs-glow .cs-sprite {
+  animation: cs-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes cs-glow {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 2px rgba(255, 240, 200, 0.4)); }
+  50% { filter: brightness(1.3) drop-shadow(0 0 8px rgba(255, 240, 200, 0.9)); }
+}
+
+.cs-sprite.pose-idle {
+  animation: player-idle-bob 1.4s ease-in-out infinite;
+}
+
+.cs-sprite.pose-walking {
+  animation: cs-walk-bounce 0.3s ease-in-out infinite;
+}
+
+.cs-sprite.pose-win,
+.cs-sprite.pose-wave {
+  animation: cs-win-bounce 0.6s ease-in-out infinite;
+}
+
+.cs-sprite.pose-hit {
+  animation: cs-hit 0.45s ease-out 1;
+}
+
+.cs-sprite.pose-float {
+  animation: cs-float 2.4s ease-in-out infinite;
+}
+
+@keyframes cs-walk-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8%); }
+}
+
+@keyframes cs-win-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12%); }
+}
+
+@keyframes cs-hit {
+  0% { transform: translate(0, 0); filter: brightness(1.8); }
+  30% { transform: translate(-6%, 0); }
+  60% { transform: translate(6%, 0); }
+  100% { transform: translate(0, 0); filter: none; }
+}
+
+@keyframes cs-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10%); }
+}
+
+/* The figure in the dark, and the master's ghost: a cold glow. */
+.cs-shadow .cs-sprite {
+  filter: drop-shadow(0 0 5px rgba(150, 120, 255, 0.7));
+}
+
+.cs-ghost .cs-sprite,
+.cs-master .cs-sprite {
+  filter: drop-shadow(0 0 7px rgba(200, 210, 255, 0.85));
+}
+
+.cs-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cs-flash.cs-flashing {
+  animation: cs-flash 0.9s ease-out 1;
+}
+
+@keyframes cs-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.cs-curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #000;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.cs-chapter {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+
+.cs-chapter[hidden] {
+  display: none;
+}
+
+.cs-chapter.open {
+  opacity: 1;
+}
+
+/* The page heading's pixel-outlined wordmark, in the scene's color. */
+.cs-chapter h2 {
+  margin: 0;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-size: clamp(1.1rem, 4.5vw, 2rem);
+  color: var(--cs-accent);
+  text-shadow:
+    -2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000,
+    0 4px 0 #000, 0 0 14px color-mix(in srgb, var(--cs-accent) 40%, transparent);
+}
+
+.cs-chapter p {
+  margin: 0;
+  color: #b8b2c8;
+  font-style: italic;
+}
+
+.cs-chapter p[hidden] {
+  display: none;
+}
+
+.cs-caption {
+  position: relative;
+  min-height: 6.2em;
+  padding: 12px 36px 12px 16px;
+  background: rgba(18, 16, 24, 0.94);
+  border: 2px solid #000;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cs-accent) 30%, transparent);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  cursor: pointer;
+}
+
+.cs-caption.open {
+  opacity: 1;
+}
+
+.cs-who {
+  display: block;
+  margin-bottom: 4px;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--cs-accent);
+}
+
+.cs-who[hidden] {
+  display: none;
+}
+
+.cs-text {
+  margin: 0;
+  line-height: 1.5;
+  font-size: clamp(0.9rem, 2.4vw, 1.05rem);
+  color: #eee;
+}
+
+.cs-caption.narration .cs-text {
+  font-style: italic;
+  color: #cfc8e0;
+}
+
+.cs-more {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  font-size: 0.8rem;
+  color: var(--cs-accent);
+  animation: cs-blink 1s steps(2, start) infinite;
+}
+
+.cs-more[hidden] {
+  display: none;
+}
+
+@keyframes cs-blink {
+  to { visibility: hidden; }
+}
+
+/* A page of the master's journal, held up over the scene. */
+.cs-note {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  width: min(calc(100vw - 32px), 440px);
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
+  padding: 20px 24px 28px;
+  background: #e8d8a8;
+  color: #3a2a1a;
+  border: 3px solid #8a7048;
+  border-radius: 3px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), inset 0 0 30px rgba(138, 112, 72, 0.35);
+  opacity: 0;
+  transform: translate(-50%, -46%) rotate(-1.5deg);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  cursor: pointer;
+}
+
+.cs-note[hidden] {
+  display: none;
+}
+
+.cs-note.open {
+  opacity: 1;
+  transform: translate(-50%, -50%) rotate(-1.5deg);
+}
+
+.cs-note-text {
+  margin: 0;
+  white-space: pre-line;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  line-height: 1.5;
+  font-size: clamp(0.9rem, 2.6vw, 1.05rem);
+}
+
+.cs-note .cs-more {
+  color: #8a7048;
+}
+
+.cs-skip {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 4;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-sprite.pose-idle,
+  .cs-sprite.pose-walking,
+  .cs-sprite.pose-win,
+  .cs-sprite.pose-wave,
+  .cs-sprite.pose-float,
+  .cs-glow .cs-sprite,
+  .cs-torch .cs-sprite,
+  .cs-more {
+    animation: none;
+  }
+}
+
+/* --- Story list (world select → Story) ------------------------------------ */
+
+#story-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#story-list .pixel-btn {
+  width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
+#story-list .pixel-btn:disabled {
+  filter: grayscale(1) brightness(0.6);
+  cursor: not-allowed;
+}
+
+.story-hint {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+  text-transform: none;
+  opacity: 0.85;
+}
+
+/* --- Chapter badges (badges.js) ------------------------------------------- */
+
+/* The award: over everything but a cutscene (which it follows). */
+#badge-award {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow: hidden;
+  --badge-glow: #ff7a1f;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--badge-glow) 30%, #050408) 0%, rgba(5, 4, 8, 0.95) 60%);
+  animation: badge-fade-in 0.4s ease both;
+}
+
+#badge-award[hidden] {
+  display: none;
+}
+
+#badge-award[data-theme="ice"] { --badge-glow: #7fdcff; }
+#badge-award[data-theme="grass"] { --badge-glow: #9fd35a; }
+#badge-award[data-theme="castle"] { --badge-glow: #c9b8ff; }
+
+@keyframes badge-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Light rays turning slowly behind the medal. */
+.badge-rays {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 160vmax;
+  height: 160vmax;
+  transform: translate(-50%, -50%);
+  background: repeating-conic-gradient(color-mix(in srgb, var(--badge-glow) 24%, transparent) 0deg 9deg, transparent 9deg 30deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 32%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 32%);
+  animation: badge-rays-spin 20s linear infinite, badge-fade-in 1.2s ease both;
+  pointer-events: none;
+}
+
+@keyframes badge-rays-spin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* The world's weather: each particle's place, timing and drift come from
+   custom properties set in showBadgeAward. */
+.badge-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.badge-p {
+  position: absolute;
+  left: var(--x);
+  width: var(--size);
+  height: var(--size);
+  opacity: 0;
+  animation-duration: var(--dur);
+  animation-delay: var(--delay);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* Lava: embers rising. */
+#badge-award[data-theme="lava"] .badge-p {
+  top: 100%;
+  background: #ffb347;
+  box-shadow: 0 0 6px #ff7a1f;
+  animation-name: badge-ember;
+}
+
+#badge-award[data-theme="lava"] .badge-p:nth-child(3n) {
+  background: #ff5c2c;
+}
+
+@keyframes badge-ember {
+  0% { opacity: 0; transform: translate(0, 0); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--drift), -105vh); }
+}
+
+/* Ice: snow falling, swaying. */
+#badge-award[data-theme="ice"] .badge-p {
+  top: -12px;
+  background: #eef6ff;
+  box-shadow: 0 0 4px #7fdcff;
+  animation-name: badge-snow;
+}
+
+@keyframes badge-snow {
+  0% { opacity: 0; transform: translate(0, 0); }
+  10% { opacity: 0.9; }
+  50% { transform: translate(var(--drift), 52vh); }
+  90% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(0, 105vh); }
+}
+
+/* Grass: leaves drifting down, tumbling. */
+#badge-award[data-theme="grass"] .badge-p {
+  top: -12px;
+  width: calc(var(--size) + 4px);
+  background: #6fbf3a;
+  border-radius: 0 70% 0 70%;
+  animation-name: badge-leaf;
+}
+
+#badge-award[data-theme="grass"] .badge-p:nth-child(2n) {
+  background: #c8f07a;
+}
+
+@keyframes badge-leaf {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+  10% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--drift) * 2), 105vh) rotate(540deg); }
+}
+
+/* Castle: sparkles twinkling all around. */
+#badge-award[data-theme="castle"] .badge-p {
+  top: var(--y);
+  background: #fff0a0;
+  box-shadow: 0 0 8px #c9b8ff;
+  animation-name: badge-twinkle;
+}
+
+#badge-award[data-theme="castle"] .badge-p:nth-child(2n) {
+  background: #c9b8ff;
+}
+
+@keyframes badge-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.4) rotate(45deg); }
+}
+
+.badge-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 380px;
+  text-align: center;
+}
+
+.badge-kicker {
+  margin: 0 0 6px;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--badge-glow);
+  text-shadow: 0 2px 0 #000;
+  animation: badge-rise 0.5s ease 0.1s both;
+}
+
+/* The medal drops in spinning like a coin, bounces, then hovers. */
+.badge-medal {
+  position: relative;
+  width: min(48vw, 190px);
+  aspect-ratio: 24 / 28;
+  perspective: 600px;
+  animation:
+    badge-drop 1s cubic-bezier(0.2, 1.3, 0.4, 1) both,
+    badge-hover 3.2s ease-in-out 1.2s infinite;
+}
+
+.badge-medal-img {
+  position: absolute;
+  inset: 0;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 16px var(--badge-glow));
+  animation: badge-spin 1s ease-out both;
+}
+
+.badge-medal-shine {
+  position: absolute;
+  inset: 0;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.6) 50%, transparent 60%) no-repeat;
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  animation: badge-shine 2.8s ease-in-out 1.1s infinite;
+  pointer-events: none;
+}
+
+@keyframes badge-drop {
+  0% { opacity: 0; transform: translateY(-55vh) scale(0.4); }
+  60% { opacity: 1; transform: translateY(0) scale(1.15); }
+  80% { transform: scale(0.95); }
+  100% { transform: none; }
+}
+
+@keyframes badge-spin {
+  from { transform: rotateY(-720deg); }
+  to { transform: rotateY(0deg); }
+}
+
+@keyframes badge-hover {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes badge-shine {
+  0% { background-position: 150% 0; }
+  45%, 100% { background-position: -50% 0; }
+}
+
+.badge-name {
+  margin: 8px 0 0;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-size: clamp(1.3rem, 5.5vw, 1.9rem);
+  color: #fff6d8;
+  text-shadow:
+    -2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000,
+    0 4px 0 #000, 0 0 16px color-mix(in srgb, var(--badge-glow) 60%, transparent);
+  animation: badge-rise 0.5s ease 0.8s both;
+}
+
+.badge-desc {
+  margin: 0;
+  color: #e6e0f0;
+  animation: badge-rise 0.5s ease 0.95s both;
+}
+
+.badge-where {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #b8b2c8;
+  animation: badge-rise 0.5s ease 1.1s both;
+}
+
+.badge-ok {
+  margin-top: 12px;
+  animation: badge-rise 0.5s ease 1.2s both;
+}
+
+@keyframes badge-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-rays,
+  .badge-p,
+  .badge-medal-shine {
+    animation: none;
+  }
+
+  .badge-p {
+    display: none;
+  }
+
+  .badge-medal,
+  .badge-medal-img {
+    animation: badge-fade-in 0.4s ease both;
+  }
+}
+
+/* The badge list (account panel). Two-class selectors so they outrank the
+   bare `button:not(.tile)` reset. */
+.badge-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.badge-list .badge-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid #000;
+  border-radius: 8px;
+  color: #eee;
+}
+
+.badge-list .badge-slot:disabled {
+  cursor: default;
+}
+
+.badge-slot-img {
+  width: 44px;
+  height: 52px;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  transition: transform 0.15s ease;
+}
+
+.badge-slot:not(.earned) .badge-slot-img {
+  filter: grayscale(1) brightness(0.25);
+}
+
+.badge-slot.earned:hover .badge-slot-img,
+.badge-slot.earned:focus-visible .badge-slot-img {
+  transform: translateY(-2px) scale(1.08);
+}
+
+.badge-slot-name {
+  font-size: 0.68rem;
+  font-weight: bold;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.badge-slot:not(.earned) .badge-slot-name {
+  color: #777;
+}
+
+.badge-list-note {
+  margin: -8px 0 12px;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+#account-guest-badges-wrap[hidden] {
+  display: none;
+}
+
+/* --- Creative Mode: room name, time limit, My Rooms (rooms.js) ------------- */
+
+#creative-room-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#creative-room-fields[hidden] {
+  display: none;
+}
+
+#creative-room-fields label {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #b7b7c2;
+}
+
+#creative-room-fields input,
+#creative-room-fields select {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 6px 8px;
+  background: #1e1e24;
+  color: #eee;
+  border: 1px solid #3a3a44;
+  border-radius: 6px;
+}
+
+#creative-room-fields input:focus-visible,
+#creative-room-fields select:focus-visible {
+  outline: 2px solid #4aa3ff;
+}
+
+#time-limit-hint {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #b7b7c2;
+}
+
+#room-status {
+  font-size: 0.85rem;
+  color: #cfc8e0;
+  text-shadow: 0 0 3px #000;
+}
+
+#room-status[hidden] {
+  display: none;
+}
+
+#rooms-count {
+  margin: -8px 0 10px;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+#rooms-empty[hidden] {
+  display: none;
+}
+
+#rooms-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.room-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid #000;
+  border-radius: 8px;
+}
+
+.room-row.current {
+  border-color: var(--theme-accent);
+}
+
+.room-thumb {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(var(--grid-size), 1fr);
+  grid-template-rows: repeat(var(--grid-size), 1fr);
+  width: 56px;
+  height: 56px;
+  background: #000;
+  border: 1px solid #000;
+  pointer-events: none;
+}
+
+/* The thumbnail is renderLevel's own markup; its tiles need no chrome. */
+.room-thumb .tile {
+  min-width: 0;
+  min-height: 0;
+  animation: none;
+}
+
+.room-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.room-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-meta {
+  font-size: 0.75rem;
+  color: #aaa;
+}
+
+.room-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.room-actions .pixel-btn {
+  min-width: 0;
+  padding: 6px 14px;
+}
+
+.room-delete.confirming {
+  color: #ff6b6b;
 }

@@ -50,8 +50,9 @@ function rotateFrame90CW(frame) {
 // whatever box it's given instead — needed for art stretched over
 // variable-width UI like the button plate, which otherwise shrinks to a
 // letterboxed strip in the middle of a wide button and lets the label run
-// off its edges.
-function frameToDataURL(frame, palette, { stretch = false } = {}) {
+// off its edges. `intrinsic` gives the SVG a pixel size (one CSS px per
+// pixel) — border-image slices are counted in those pixels.
+function frameToDataURL(frame, palette, { stretch = false, intrinsic = false } = {}) {
   const rows = frame.length;
   const cols = frame[0].length;
   let rects = '';
@@ -64,7 +65,8 @@ function frameToDataURL(frame, palette, { stretch = false } = {}) {
     }
   }
   const aspect = stretch ? ' preserveAspectRatio="none"' : '';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${cols} ${rows}"${aspect} shape-rendering="crispEdges">${rects}</svg>`;
+  const size = intrinsic ? ` width="${cols}" height="${rows}"` : '';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${cols} ${rows}"${size}${aspect} shape-rendering="crispEdges">${rects}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
@@ -150,6 +152,8 @@ function makeWallFrame(accent = 'veins') {
       for (let x = 0; x < 16; x++) if ((x * 5 + y) % 9 < 2) setPixel(g, x, y, 'L');
     }
     setPixel(g, 5, 6, 'L'); setPixel(g, 11, 10, 'L');
+  } else if (accent === 'crumble') {
+    addCrumble(g);
   } else if (accent === 'moss') {
     // Moss clumps on the block tops, a few strands hanging down.
     for (const [x, y, len] of [[2, 1, 2], [9, 1, 1], [13, 5, 2], [5, 5, 1], [1, 9, 1], [10, 9, 3], [6, 13, 1], [14, 13, 1]]) {
@@ -334,6 +338,49 @@ function makeGoalFrame() {
   setPixel(g, cx, cy - 5, 'V');
   setPixel(g, cx + 5, cy, 'V');
   setPixel(g, cx - 4, cy - 4, 'V');
+  return g.map((row) => row.join(''));
+}
+
+// Locked exit (any lever in the room still off): the same gem, dulled, with
+// iron bars across it. Drawn with the goal's own palette keys so each
+// theme's gem shows through dimmed (see LOCKED_GOAL_COLORS).
+function makeLockedGoalFrame() {
+  const g = makeGoalFrame().map((row) => row.split(''));
+  for (const x of [4, 7, 10]) {
+    fillRect(g, x, 2, 1, 12, 'L');
+    fillRect(g, x + 1, 2, 1, 12, 'M');
+  }
+  fillRect(g, 3, 2, 10, 1, 'L');
+  fillRect(g, 3, 13, 10, 1, 'M');
+  return g.map((row) => row.join(''));
+}
+
+// A lever on a stone base plate: handle thrown left with a red knob when
+// off, thrown right with a green knob and a glow when on.
+const LEVER_COLORS = {
+  K: '#2a2530', J: '#4d4656', N: '#15121a', H: '#c8c0b0', I: '#8a8478',
+  O: '#e0453a', P: '#5fe07a', G: '#fff2a0',
+};
+
+function makeLeverFrame(on) {
+  const g = floorGrid();
+  // Base plate with a dark slot the handle pivots in.
+  fillRect(g, 3, 10, 10, 4, 'K');
+  fillRect(g, 3, 10, 10, 1, 'J');
+  fillRect(g, 6, 11, 4, 1, 'N');
+  // Handle: a 2px-wide diagonal from the slot up to the knob.
+  const dir = on ? 1 : -1;
+  for (let k = 0; k < 5; k++) {
+    const x = 8 + dir * k;
+    setPixel(g, x, 10 - k, 'H');
+    setPixel(g, x - 1, 10 - k, 'I');
+  }
+  const kx = 8 + dir * 5;
+  fillRect(g, kx - 1, 3, 3, 3, on ? 'P' : 'O');
+  setPixel(g, kx - 1, 3, 'G');
+  if (on) {
+    for (const [x, y] of [[kx - 2, 2], [kx + 2, 2], [kx, 1], [kx + 2, 6]]) setPixel(g, x, y, 'G');
+  }
   return g.map((row) => row.join(''));
 }
 
@@ -602,25 +649,199 @@ function makePlayerWinFrame() {
 // the tile/player art above (a small bitmap grid + palette -> inline SVG),
 // just for UI chrome instead of gameplay tiles.
 
-const TITLE_BUTTON_PALETTE = { M: '#5a5a66', O: '#7a7a88', N: '#38383f', P: '#1a1a1e' };
+// The chrome every button wears: a bronze trim around a dark face, the
+// same metal-on-shadow look as the chapter badges' rims and the cutscenes'
+// caption boxes. Drawn ring by ring from the edge in: `rings` names each
+// ring's color, where 'trim' is lit on its top/left (H) and shadowed on its
+// bottom/right (S), meeting in G at the two mixed corners. The outermost
+// corner pixels are cut off, and the middle is left empty (the face is the
+// button's own CSS background). `studs` are single bright B pixels.
+const BUTTON_PLATE_PALETTE = {
+  K: '#0e0a0c', H: '#d8a850', G: '#a87428', S: '#5a3c14', D: '#140f17', B: '#ffe9a8',
+};
 
-// A riveted steel plate — the same bevel language as drawSpikePlateBase
-// above (light top/left edge, dark bottom/right edge, corner rivets) — so
-// the menu buttons read as the same "trap mechanism" material as the spike
-// tiles in the game itself, not an unrelated UI skin. Stretched via CSS
-// background-size to whatever size a .title-btn ends up, same as tiles.
-function makeTitleButtonFrame() {
-  const w = 40, h = 12;
-  const g = makeGrid(w, h, 'M');
-  fillRect(g, 0, 0, w, 1, 'O');
-  fillRect(g, 0, 0, 1, h, 'O');
-  fillRect(g, 0, h - 1, w, 1, 'P');
-  fillRect(g, w - 1, 0, 1, h, 'P');
-  fillRect(g, 1, 1, w - 2, 1, 'O');
-  fillRect(g, 1, h - 2, w - 2, 1, 'N');
-  for (const [x, y] of [[2, 2], [w - 4, 2], [2, h - 4], [w - 4, h - 4]]) {
-    fillRect(g, x, y, 2, 2, 'N');
-    setPixel(g, x, y, 'P');
+function makeButtonPlateFrame(w, h, rings, { studs = [] } = {}) {
+  const g = makeGrid(w, h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const d = Math.min(x, y, w - 1 - x, h - 1 - y);
+      const ring = rings[d];
+      if (ring === undefined) continue;
+      const top = y === d, left = x === d, bottom = y === h - 1 - d, right = x === w - 1 - d;
+      if (d === 0 && (top || bottom) && (left || right)) continue;
+      if (ring !== 'trim') setPixel(g, x, y, ring);
+      else if ((top && right) || (bottom && left)) setPixel(g, x, y, 'G');
+      else setPixel(g, x, y, top || left ? 'H' : 'S');
+    }
+  }
+  for (const [x, y] of studs) setPixel(g, x, y, 'B');
+  return g.map((row) => row.join(''));
+}
+
+// Every button's frame (.pixel-btn, .title-btn, the level plates — see
+// style.css): the three thin rings with a stud at each inner corner, as a
+// 9-slice border-image (3px slices) so the trim stays crisp and the same
+// thickness on a button of any size. The face is the button's own
+// background.
+function makeButtonFrame() {
+  return makeButtonPlateFrame(8, 8, ['K', 'trim', 'D'], { studs: [[2, 2], [5, 2], [2, 5], [5, 5]] });
+}
+
+// The home menu's frame: the same, heavier — a fourth, gold ring, a
+// brighter gilt, and 4px slices.
+const MENU_FRAME_PALETTE = { ...BUTTON_PLATE_PALETTE, H: '#f0c860', G: '#c8901e', S: '#7a5418' };
+
+function makeMenuFrame() {
+  return makeButtonPlateFrame(12, 12, ['K', 'trim', 'G', 'D'], { studs: [[2, 2], [9, 2], [2, 9], [9, 9]] });
+}
+
+// --- The home screen's backdrop ----------------------------------------------
+// The view out of the Trapwright's workshop door, at the foot of the
+// mountain (where the prologue starts): every world of the story in one
+// night scene — the volcano glowing on the left, the frozen peaks behind,
+// the castle on its crag under the moon on the right, and the overgrown
+// forest along the bottom with a path running into it. The menu covers
+// the middle, so the worlds sit to the sides and along the bottom.
+
+const HOME_PALETTE = {
+  1: '#07050e', 2: '#0c0818', 3: '#130c22', 4: '#1b112c', 5: '#261532', 6: '#371a36', 7: '#4e2034', 8: '#6e2a30',
+  S: '#ffffff', s: '#8a84a8',
+  O: '#e8e4d0', P: '#c8c2aa', Q: '#4a4470',
+  M: '#18203a', N: '#26324e', W: '#d6ecff', w: '#86a6c8',
+  V: '#150c12', U: '#24121a', L: '#ff7a1f', G: '#ffcf4d', Y: '#fff6d8', R: '#c8501e',
+  C: '#0d0a15', c: '#3a3058', Z: '#c9b8ff',
+  t: '#10200f', T: '#08120a', F: '#fff27a', D: '#1e1610',
+  A: '#2e2522', a: '#3e322c', B: '#140e0c', e: '#6a4630',
+};
+
+// Mountains as straight-sided peaks ({ x, h, slope }), filled from each
+// column's top down to the canvas bottom. `cap` flattens every peak at that
+// height (a crater). Returns each column's top row, or -1 where nothing was
+// drawn.
+function fillPeaks(g, peaks, baseY, ch, cap = Infinity) {
+  const w = g[0].length, h = g.length;
+  const tops = [];
+  for (let x = 0; x < w; x++) {
+    let height = 0;
+    for (const p of peaks) height = Math.max(height, p.h - Math.abs(x - p.x) * p.slope);
+    height = Math.min(height, cap);
+    if (height < 1) { tops.push(-1); continue; }
+    const top = Math.round(baseY - height);
+    for (let y = Math.max(0, top); y < h; y++) setPixel(g, x, y, ch);
+    tops.push(top);
+  }
+  return tops;
+}
+
+function makeHomeBackdropFrame() {
+  const w = 128, h = 96;
+  const g = makeGrid(w, h);
+  const skyStops = ['1', '1', '2', '2', '3', '4', '5', '6', '7', '8'];
+  const skyAt = (y) => skyStops[Math.min(skyStops.length - 1, Math.floor((y / h) * skyStops.length))];
+  for (let y = 0; y < h; y++) fillRect(g, 0, y, w, 1, skyAt(y));
+
+  // Stars, then the moon (with a dithered halo and craters) behind where
+  // the castle will stand.
+  const mx = 106, my = 30;
+  for (let k = 0; k < 46; k++) {
+    const x = (k * 53 + 11) % w, y = (k * 29 + 5) % 52;
+    if (Math.hypot(x - mx, y - my) > 10) setPixel(g, x, y, k % 3 === 0 ? 'S' : 's');
+  }
+  for (let y = my - 9; y <= my + 9; y++) {
+    for (let x = mx - 9; x <= mx + 9; x++) {
+      const d = Math.hypot(x - mx, y - my);
+      if (d < 6.5) setPixel(g, x, y, 'O');
+      else if (d < 8.5 && (x + y) % 2 === 0) setPixel(g, x, y, 'Q');
+    }
+  }
+  for (const [x, y] of [[104, 28], [108, 32], [107, 27], [103, 32]]) setPixel(g, x, y, 'P');
+
+  // The Frozen Caverns' peaks, far off in the middle: snow caps, and the
+  // moonlit (right-hand) faces a shade lighter.
+  const icePeaks = [{ x: 50, h: 30, slope: 1.1 }, { x: 66, h: 38, slope: 1.2 }, { x: 82, h: 29, slope: 1.1 }];
+  const iceTops = fillPeaks(g, icePeaks, 80, 'M');
+  iceTops.forEach((top, x) => {
+    if (top < 0) return;
+    const nearest = icePeaks.reduce((a, b) => (Math.abs(x - a.x) <= Math.abs(x - b.x) ? a : b));
+    const moonlit = x > nearest.x;
+    const cap = 3 + ((x * 5) % 3);
+    for (let y = top; y < h; y++) {
+      if (y < top + cap) setPixel(g, x, y, moonlit ? 'w' : 'W');
+      else if (moonlit) setPixel(g, x, y, 'N');
+    }
+  });
+
+  // The Volcanic Depths: a cone on the left with a glowing crater, lava
+  // seams running down it and sparks thrown up out of it.
+  const cone = [{ x: 24, h: 44, slope: 1.15 }];
+  const coneTops = fillPeaks(g, cone, 84, 'V', 40);
+  coneTops.forEach((top, x) => {
+    if (top < 0 || x <= 24) return;
+    for (let y = top; y < h; y++) setPixel(g, x, y, 'U');
+  });
+  for (let i = 0; i < 20; i++) setPixel(g, 22 - Math.floor(i * 0.55), 45 + i, i % 4 === 3 ? 'R' : 'L');
+  for (let i = 0; i < 13; i++) setPixel(g, 27 + Math.floor(i * 0.7), 45 + i, i % 3 === 2 ? 'R' : 'L');
+  fillRect(g, 21, 44, 7, 2, 'G');
+  fillRect(g, 23, 44, 3, 1, 'Y');
+  for (let x = 20; x <= 28; x += 2) setPixel(g, x, 43, 'L');
+  for (const [x, y] of [[23, 40], [26, 38], [21, 36], [25, 33]]) setPixel(g, x, y, 'G');
+
+  // The Abandoned Castle on its crag: a curtain wall, towers (one broken)
+  // and two lit windows.
+  fillPeaks(g, [{ x: 108, h: 26, slope: 0.9 }], 86, 'C');
+  fillRect(g, 95, 52, 24, 10, 'C');
+  for (let x = 95; x < 119; x += 2) setPixel(g, x, 51, 'C');
+  const tower = (x0, width, top, broken) => {
+    fillRect(g, x0, top, width, 52 - top, 'C');
+    for (let x = x0; x < x0 + width; x += 2) setPixel(g, x, top - 1, 'C');
+    if (!broken) return;
+    // Knock a jagged bite out of the top, back to the sky behind it.
+    for (let k = 0; k < width; k++) {
+      for (let y = top - 1; y < top + [1, 3, 2, 0][k % 4]; y++) setPixel(g, x0 + k, y, skyAt(y));
+    }
+  };
+  tower(96, 4, 44, false);
+  tower(103, 6, 36, false);
+  tower(105, 2, 32, false);
+  tower(112, 4, 42, true);
+  // Moonlight catches each tower's left edge (below the moon itself, which
+  // they stand in front of), so the silhouette stands out from the night.
+  for (const [x, top] of [[96, 44], [103, 38], [112, 44], [95, 52]]) {
+    for (let y = top; y < 52 + (x === 95 ? 10 : 0); y++) if (g[y][x] === 'C') setPixel(g, x, y, 'c');
+  }
+  for (const [x, y] of [[106, 40], [98, 48], [104, 46], [113, 48], [108, 56], [100, 57]]) setPixel(g, x, y, 'Z');
+
+  // The Overgrown Ruins' forest: a far treeline, a nearer one, fireflies,
+  // and a path cut through it toward the mountains.
+  fillSilhouette(g, [2, 4, 6, 8, 6, 4, 3, 5, 7, 9, 7, 5, 3, 2, 4, 6], 86, 't');
+  fillSilhouette(g, [3, 6, 9, 12, 9, 6, 4, 7, 10, 13, 10, 7, 4, 3, 6, 8], 97, 'T');
+  for (let y = 86; y < h; y++) {
+    const half = 1 + Math.floor((y - 86) * 0.8);
+    fillRect(g, 64 - half, y, half * 2, 1, 'D');
+  }
+  for (const [x, y] of [[14, 84], [33, 88], [47, 81], [79, 86], [92, 83], [110, 89], [58, 90], [121, 82]]) {
+    setPixel(g, x, y, 'F');
+  }
+
+  // The doorway: stone pillars up the sides and an arch across the top,
+  // laid in courses, its inner edge warm with torchlight.
+  const cx = 63.5;
+  const open = (x, y) => {
+    if (x < 0 || x >= w || y < 0 || y >= h) return false;
+    const t = (30 - y) / 27;
+    const half = y >= 30 ? 52 : (t < 1 ? 52 * Math.sqrt(1 - t * t) : 0);
+    return Math.abs(x - cx) < half;
+  };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (open(x, y)) continue;
+      const course = Math.floor(y / 5);
+      let ch = 'A';
+      if (y % 5 === 4 || x % 8 === (course % 2 ? 4 : 0)) ch = 'B';
+      else if ((x * 13 + y * 7) % 17 === 0) ch = 'a';
+      if (ch !== 'B' && (open(x - 1, y) || open(x + 1, y) || open(x, y + 1))) ch = 'e';
+      setPixel(g, x, y, ch);
+    }
   }
   return g.map((row) => row.join(''));
 }
@@ -643,21 +864,6 @@ function makeTorchFrame() {
   return g.map((row) => row.join(''));
 }
 
-const TITLE_SPIKE_SILHOUETTE_PALETTE = { S: '#0c0c10', T: '#1a1a20' };
-
-// A jagged dark spike silhouette lining the title screen's floor — the
-// "trees" of a dungeon skyline, and a quiet nod to the game's own hazard
-// tiles rather than an unrelated background prop.
-function makeSpikeSilhouetteFrame() {
-  const g = makeGrid(10, 16);
-  for (let row = 0; row < 12; row++) {
-    const half = Math.max(1, 5 - Math.floor(row / 2.4));
-    fillRect(g, 5 - half, row, half * 2, 1, row % 4 === 0 ? 'T' : 'S');
-  }
-  fillRect(g, 2, 12, 6, 4, 'S');
-  return g.map((row) => row.join(''));
-}
-
 const TITLE_SIGN_PALETTE = { W: '#6b4a2f', X: '#4a3220', Y: '#8a6238' };
 
 // A plain wooden signpost — stands in for the reference image's signpost,
@@ -675,9 +881,10 @@ function makeSignpostFrame() {
 }
 
 const TITLE_SCREEN_TEXTURES = {
-  button: frameToDataURL(makeTitleButtonFrame(), TITLE_BUTTON_PALETTE, { stretch: true }),
+  buttonFrame: frameToDataURL(makeButtonFrame(), BUTTON_PLATE_PALETTE, { intrinsic: true }),
+  menuFrame: frameToDataURL(makeMenuFrame(), MENU_FRAME_PALETTE, { intrinsic: true }),
+  backdrop: frameToDataURL(makeHomeBackdropFrame(), HOME_PALETTE),
   torch: frameToDataURL(makeTorchFrame(), TITLE_TORCH_PALETTE),
-  spike: frameToDataURL(makeSpikeSilhouetteFrame(), TITLE_SPIKE_SILHOUETTE_PALETTE),
   sign: frameToDataURL(makeSignpostFrame(), TITLE_SIGN_PALETTE),
 };
 
@@ -1309,6 +1516,304 @@ function makeFairyRingFrame() {
   return g.map((row) => row.join(''));
 }
 
+// --- Castle-theme art ------------------------------------------------------------
+//
+// The abandoned castle's own traps (crusher, pressure plate, portcullis,
+// ghost), plus the castle versions of shared traps that need a different
+// shape, not just different colors: magic mirrors (portals), a crossbow
+// (turret), a powder barrel (bomb) and rotten floorboards (thin ice).
+
+// Crusher: a stone block on a chain. 'up' is the floor under it — a
+// recessed slot with the block's shadow — and 'down' is the block itself
+// resting on the floor, solid, with iron bands.
+const CRUSHER_PALETTE = {
+  A: '#57525e', B: '#3a3640', C: '#6e6978', Z: '#1c1a22', K: '#2a2730',
+  S: '#6a6474', T: '#8a8494', U: '#46414e', I: '#9aa0ae', J: '#5a606e', R: '#b02a3a',
+};
+
+function makeCrusherFrame(state) {
+  if (state === 'down') {
+    const g = makeGrid(16, 16, 'S');
+    fillRect(g, 0, 0, 16, 1, 'T');
+    fillRect(g, 0, 0, 1, 16, 'T');
+    fillRect(g, 0, 15, 16, 1, 'U');
+    fillRect(g, 15, 0, 1, 16, 'U');
+    for (const y of [4, 11]) fillRect(g, 0, y, 16, 2, 'J');
+    for (const y of [4, 11]) fillRect(g, 0, y, 16, 1, 'I');
+    for (const [x, y] of [[2, 4], [13, 4], [2, 11], [13, 11]]) setPixel(g, x, y + 1, 'K');
+    // Cracks from all the slamming.
+    for (const [x, y] of [[5, 7], [6, 8], [7, 8], [10, 2], [11, 3], [9, 13]]) setPixel(g, x, y, 'U');
+    return g.map((row) => row.join(''));
+  }
+  const g = floorGrid();
+  // The slot the block drops into, and its shadow from above.
+  for (let k = 1; k < 15; k++) {
+    setPixel(g, k, 1, 'K'); setPixel(g, k, 14, 'K');
+    setPixel(g, 1, k, 'K'); setPixel(g, 14, k, 'K');
+  }
+  for (let y = 3; y < 13; y++) {
+    for (let x = 3; x < 13; x++) if ((x + y) % 2 === 0) setPixel(g, x, y, 'Z');
+  }
+  // Warning notches at the corners.
+  for (const [x, y] of [[1, 1], [14, 1], [1, 14], [14, 14]]) setPixel(g, x, y, 'R');
+  return g.map((row) => row.join(''));
+}
+
+// The block slamming down (transparent overlay, crash tick only): the
+// block's bottom edge and a burst of dust.
+function makeCrushFrame() {
+  const g = makeGrid(16, 16);
+  fillRect(g, 1, 0, 14, 11, 'S');
+  fillRect(g, 1, 10, 14, 1, 'U');
+  fillRect(g, 1, 4, 14, 1, 'I');
+  for (const [x, y] of [[0, 12], [2, 13], [4, 12], [11, 12], [13, 13], [15, 12], [7, 14], [9, 13]]) setPixel(g, x, y, 'T');
+  return g.map((row) => row.join(''));
+}
+
+// Pressure plate: a square stone plate sunk into the floor, with a rune.
+const PLATE_COLORS = { P: '#6e6978', Q: '#46414e', R: '#8a8494', V: '#b89aff', W: '#e8dcff' };
+
+function makePlateFrame() {
+  const g = floorGrid();
+  fillRect(g, 3, 3, 10, 10, 'P');
+  fillRect(g, 3, 3, 10, 1, 'Q');
+  fillRect(g, 3, 3, 1, 10, 'Q');
+  fillRect(g, 3, 12, 10, 1, 'R');
+  fillRect(g, 12, 3, 1, 10, 'R');
+  // A diamond rune in the middle.
+  for (const [x, y] of [[7, 5], [8, 5], [6, 6], [9, 6], [5, 7], [10, 7], [5, 8], [10, 8], [6, 9], [9, 9], [7, 10], [8, 10]]) setPixel(g, x, y, 'V');
+  setPixel(g, 7, 7, 'W'); setPixel(g, 8, 8, 'W');
+  return g.map((row) => row.join(''));
+}
+
+// Portcullis: iron bars across the floor ('shut', solid), or the bars
+// hauled up out of sight with only their spiked tips showing ('open').
+const GATE_COLORS = { I: '#8a8e9c', J: '#4a4e5c', K: '#1c1e26', T: '#c0c4d0', R: '#b02a3a' };
+
+function makeGateFrame(open) {
+  const g = floorGrid();
+  if (open) {
+    for (const x of [2, 6, 10, 13]) {
+      setPixel(g, x, 0, 'I'); setPixel(g, x, 1, 'T');
+    }
+    fillRect(g, 0, 0, 16, 1, 'K');
+    fillRect(g, 1, 14, 14, 1, 'K');
+    return g.map((row) => row.join(''));
+  }
+  for (const x of [2, 6, 10, 13]) {
+    fillRect(g, x, 0, 2, 16, 'J');
+    fillRect(g, x, 0, 1, 16, 'I');
+    setPixel(g, x, 15, 'T'); setPixel(g, x + 1, 15, 'T');
+  }
+  for (const y of [3, 11]) {
+    fillRect(g, 0, y, 16, 1, 'J');
+    fillRect(g, 0, y, 16, 1, 'I');
+    for (const x of [2, 6, 10, 13]) setPixel(g, x, y, 'K');
+  }
+  return g.map((row) => row.join(''));
+}
+
+// Ghost: a pale wisp with hollow eyes and a ragged tail (transparent
+// overlay; stamped on floor for its Creative Mode look).
+const GHOST_PALETTE = { W: '#eef0ff', V: '#b8bce0', K: '#1c1a2a', G: '#8a8ec0' };
+
+const GHOST_FRAME = [
+  '................',
+  '.....VWWWWV.....',
+  '....VWWWWWWV....',
+  '...VWWWWWWWWV...',
+  '...WWKKWWKKWW...',
+  '...WWKKWWKKWW...',
+  '..VWWWWWWWWWWV..',
+  '..WWWWWKKWWWWW..',
+  '..WWWWWKKWWWWW..',
+  '..WWWWWWWWWWWW..',
+  '..VWWWWWWWWWWV..',
+  '..VWWWWWWWWWWV..',
+  '..GVWWVWWVWWVG..',
+  '...GV.GVVG.VG...',
+  '....G..GG..G....',
+  '................',
+];
+
+function makeGhostBuilderFrame() {
+  const g = floorGrid();
+  stampFrame(g, GHOST_FRAME);
+  return g.map((row) => row.join(''));
+}
+
+// Magic mirror: the castle's portal — a tall oval glass in an ornate
+// frame. R frame, S frame highlight, V glass, W glint (same keys as the
+// other portal styles, so the per-theme portal colors slot in).
+function makeMirrorFrame() {
+  const g = floorGrid();
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const d = Math.hypot((x - 7.5) / 5.6, (y - 7.5) / 7.2);
+      if (d <= 1 && d > 0.78) setPixel(g, x, y, x + y < 14 ? 'S' : 'R');
+      else if (d <= 0.78) setPixel(g, x, y, 'V');
+    }
+  }
+  for (const [x, y] of [[5, 4], [5, 5], [6, 3], [9, 10], [10, 9]]) setPixel(g, x, y, 'W');
+  setPixel(g, 7, 0, 'S'); setPixel(g, 8, 0, 'S');
+  return g.map((row) => row.join(''));
+}
+
+// Crossbow: the castle's turret — a heavy crossbow bolted to the wall,
+// facing up, with the bolt nocked. Uses the turret palette keys (wall D/F/G,
+// housing H/J/K/B, bolt tip M/Y, R) so the per-theme turret colors slot in.
+function makeCrossbowUpFrame() {
+  const g = makeGrid(16, 16, 'D');
+  fillRect(g, 0, 0, 16, 1, 'F');
+  fillRect(g, 0, 0, 1, 16, 'F');
+  fillRect(g, 0, 15, 16, 1, 'G');
+  fillRect(g, 15, 0, 1, 16, 'G');
+  // Stock.
+  fillRect(g, 7, 4, 2, 11, 'H');
+  fillRect(g, 7, 4, 1, 11, 'J');
+  // Bow arms, curving back from the stock.
+  for (let k = 0; k < 6; k++) {
+    setPixel(g, 6 - k, 6 + Math.floor(k / 2), 'J');
+    setPixel(g, 9 + k, 6 + Math.floor(k / 2), 'K');
+  }
+  // String.
+  for (let x = 2; x < 14; x++) setPixel(g, x, 9, 'B');
+  // Bolt, point up.
+  fillRect(g, 7, 1, 2, 5, 'R');
+  setPixel(g, 7, 1, 'Y'); setPixel(g, 8, 1, 'M');
+  setPixel(g, 7, 2, 'M');
+  return g.map((row) => row.join(''));
+}
+
+// Powder barrel: the castle's bomb — a banded wooden keg with a fuse.
+// 'gone' reuses the bomb's scorch mark.
+const BARREL_COLORS = {
+  O: '#8a5a32', P: '#6b4222', Q: '#a8723e', I: '#5a5e6a', J: '#8a8e9c',
+  W: '#c8a870', S: '#ffcf4d', T: '#fff6d8', D: '#ff7a1f', X: '#1e1914', Z: '#2a221c',
+};
+
+function makeBarrelFrame(state) {
+  if (state === 'gone') return makeBombFrame('gone');
+  const g = floorGrid();
+  for (let y = 4; y < 15; y++) {
+    const bulge = y > 6 && y < 12 ? 1 : 0;
+    fillRect(g, 3 - bulge, y, 10 + bulge * 2, 1, 'O');
+    setPixel(g, 3 - bulge, y, 'Q');
+    setPixel(g, 12 + bulge, y, 'P');
+  }
+  for (const y of [5, 13]) fillRect(g, 3, y, 10, 1, 'I');
+  fillRect(g, 2, 9, 12, 1, 'J');
+  for (const x of [6, 9]) fillRect(g, x, 6, 1, 7, 'P');
+  fillRect(g, 7, 3, 2, 1, 'P');
+  setPixel(g, 9, 2, 'W'); setPixel(g, 10, 1, 'W');
+  if (state === 'lit') {
+    setPixel(g, 11, 0, 'T');
+    for (const [x, y] of [[10, 0], [12, 0], [11, 1]]) setPixel(g, x, y, 'S');
+    setPixel(g, 12, 1, 'D');
+  } else {
+    setPixel(g, 11, 0, 'D');
+  }
+  return g.map((row) => row.join(''));
+}
+
+// Rotten floorboards: the castle's thin ice — old planks that hold you once.
+// 'cracked' (you're standing on it) sags and splits; 'broken' is the hole
+// left behind, straight down into the dark.
+const FLOORBOARD_PALETTE = {
+  A: '#7a5a3a', B: '#5a3f26', C: '#94704a', K: '#2e1f14', N: '#3a2a1a', D: '#07060a', E: '#141018',
+};
+
+function makeFloorboardFrame(state) {
+  const g = makeGrid(16, 16, 'A');
+  if (state === 'broken') {
+    fillRect(g, 0, 0, 16, 16, 'D');
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) if (Math.hypot(x - 7.5, y - 7.5) > 6.5 && (x * 3 + y) % 4 !== 0) setPixel(g, x, y, 'E');
+    }
+    // Splintered plank ends round the edge.
+    for (const [x, y, w] of [[0, 0, 4], [11, 0, 5], [0, 15, 3], [12, 15, 4], [0, 6, 2], [14, 9, 2]]) fillRect(g, x, y, w, 1, 'B');
+    return g.map((row) => row.join(''));
+  }
+  // Four planks, grain lines, nail heads.
+  for (const y of [0, 4, 8, 12]) {
+    fillRect(g, 0, y, 16, 1, 'C');
+    fillRect(g, 0, y + 3, 16, 1, 'K');
+  }
+  for (const [x, y] of [[3, 2], [9, 5], [5, 10], [12, 13], [13, 1]]) fillRect(g, x, y, 3, 1, 'B');
+  for (const [x, y] of [[1, 1], [14, 1], [1, 9], [14, 9]]) setPixel(g, x, y, 'N');
+  if (state === 'cracked') {
+    for (let k = 0; k < 12; k++) setPixel(g, 2 + k, 5 + Math.round(Math.sin(k) * 1.5) + (k > 6 ? 2 : 0), 'K');
+    fillRect(g, 7, 6, 2, 4, 'N');
+  }
+  return g.map((row) => row.join(''));
+}
+
+// Crumbling masonry for the castle walls (see the 'crumble' accent in
+// makeWallFrame): a chipped-off corner, a crack, a cobweb.
+function addCrumble(g) {
+  fillRect(g, 13, 0, 3, 2, 'G');
+  setPixel(g, 12, 0, 'G');
+  fillRect(g, 0, 13, 2, 3, 'G');
+  for (const [x, y] of [[4, 6], [5, 7], [5, 8], [6, 9], [10, 10], [11, 11]]) setPixel(g, x, y, 'G');
+  for (const [x, y] of [[1, 1], [2, 1], [1, 2], [3, 2], [2, 3]]) setPixel(g, x, y, 'L');
+}
+
+// Moonlit ruins: a castle's broken towers against a huge moon, with bats,
+// framed by a crumbling stone arch.
+const CASTLE_PALETTE = {
+  1: '#07060f', 2: '#0d0b1c', 3: '#141129', 4: '#1b1736', 5: '#231d44', 6: '#2c2552', 7: '#382f60', 8: '#463a6e',
+  O: '#e8e4d0', P: '#c8c2aa', Q: '#8a84a8', S: '#ffffff',
+  K: '#0b0912', H: '#110f1a', B: '#050408',
+  C: '#1a1720', F: '#3a3444',
+};
+
+function makeCastleBackdropFrame() {
+  const w = 128, h = 96;
+  const g = makeGrid(w, h);
+  const skyStops = ['1', '1', '2', '2', '3', '4', '5', '6', '7', '8'];
+  for (let y = 0; y < h; y++) {
+    fillRect(g, 0, y, w, 1, skyStops[Math.min(skyStops.length - 1, Math.floor((y / h) * skyStops.length))]);
+  }
+  for (let k = 0; k < 36; k++) setPixel(g, (k * 41 + 7) % w, (k * 13) % 44, 'S');
+  // The moon, with a halo and craters.
+  const mx = 84, my = 24;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const d = Math.hypot(x - mx, y - my);
+      if (d < 11) setPixel(g, x, y, 'O');
+      else if (d < 13 && (x + y) % 2 === 0) setPixel(g, x, y, 'Q');
+    }
+  }
+  for (const [x, y, r] of [[80, 20, 2], [88, 27, 3], [86, 17, 1], [79, 28, 1]]) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) if (Math.hypot(dx, dy) <= r) setPixel(g, x + dx, y + dy, 'P');
+    }
+  }
+  // Rolling hills, then the castle: a keep, towers (one broken), a wall
+  // with crenellations.
+  fillSilhouette(g, [6, 8, 10, 12, 10, 8, 7, 6, 8, 10, 12, 14, 12, 10, 8, 7], 84, 'H');
+  const tower = (x0, width, top, broken) => {
+    fillRect(g, x0, top, width, h - top, 'K');
+    for (let x = x0; x < x0 + width; x += 2) setPixel(g, x, top - 1, 'K');
+    if (broken) for (let k = 0; k < width; k++) fillRect(g, x0 + k, top - 1, 1, (k * 3) % 5, '5');
+  };
+  fillRect(g, 30, 58, 70, h - 58, 'K');
+  for (let x = 30; x < 100; x += 3) setPixel(g, x, 57, 'K');
+  tower(34, 8, 40, false);
+  tower(52, 14, 30, false);
+  tower(58, 3, 24, false);
+  tower(76, 9, 44, true);
+  tower(92, 6, 50, false);
+  // Bats.
+  for (const [x, y] of [[40, 16], [48, 22], [62, 12], [104, 34]]) {
+    setPixel(g, x, y, 'B'); setPixel(g, x - 1, y - 1, 'B'); setPixel(g, x + 1, y - 1, 'B');
+    setPixel(g, x - 2, y - 1, 'B'); setPixel(g, x + 2, y - 1, 'B');
+  }
+  fillCaveWalls(g, 'C', 0.36, 0.05, 'F');
+  addCaveCeiling(g, 'C');
+  return g.map((row) => row.join(''));
+}
+
 // --- Theme art: palettes per theme -------------------------------------------
 //
 // Everything that's shared between themes is the same generator with a
@@ -1389,6 +1894,39 @@ const THEME_ART = {
     current: { C: '#2a6a9a', B: '#1a4a70', L: '#3a86ba', F: '#4f9ad0', O: '#8fd0f0', P: '#e0f6ff' },
     shot: FIRE_PALETTE,
   },
+  castle: {
+    floor: { A: '#57525e', B: '#3a3640', C: '#6e6978', E: '#8a8478', q: '#2a2730', r: '#b8b4c0' },
+    floorDecor: (g) => {
+      // Cracks across the flagstones, a scrap of cobweb, a little rubble.
+      for (const [x, y] of [[2, 3], [3, 4], [4, 4], [5, 5], [11, 10], [12, 11], [12, 12], [10, 2]]) setPixel(g, x, y, 'q');
+      setPixel(g, 14, 14, 'r'); setPixel(g, 13, 14, 'r'); setPixel(g, 14, 13, 'r');
+      setPixel(g, 4, 12, 'E'); setPixel(g, 5, 13, 'E');
+    },
+    wall: { D: '#2c2833', E: '#17151b', F: '#403a48', G: '#0e0c11', L: '#8a8494' }, wallAccent: 'crumble',
+    spike: {
+      M: '#3a3640', O: '#57525e', N: '#221f27', P: '#121016',
+      H: '#ffffff', S: '#d6d8e0', D: '#8f94a3', G: '#4a4e5c',
+      K: '#4a4652', L: '#2e2b33', R: '#c83a4a', T: '#ffffff', U: '#e0e4f0',
+    },
+    oneway: { N: '#2c2833', L: '#403a48', K: '#17151b', P: '#c8b4ff', O: '#4a2a7a' },
+    start: { Q: '#6b3fa0', R: '#3e2266', S: '#2a2420', F: '#e8c04a' },
+    goal: { T: '#c9b8ff', U: '#6a4fb0', V: '#f8f4ff' },
+    portalStyle: 'mirror',
+    portalA: { R: '#9aa0ae', S: '#e0e4f0', V: '#2e3350', W: '#ffffff' },
+    portalB: { R: '#8a5ac8', S: '#e0ccff', V: '#241a3c', W: '#f4ecff' },
+    ghost: { G: '#7a7684', Q: '#a8a4b4' },
+    ice: ICE_PALETTE,
+    turretStyle: 'crossbow',
+    turret: {
+      D: '#2c2833', F: '#403a48', G: '#0e0c11',
+      H: '#6b4a2f', J: '#8a6238', K: '#3a2618', B: '#1a1510',
+      M: '#e0e4f0', Y: '#ffffff', R: '#8f94a3',
+    },
+    current: CURRENT_PALETTE,
+    bombStyle: 'barrel',
+    thinIceStyle: 'boards',
+    shot: { D: '#6a6e7c', O: '#a0a6b8', Y: '#dfe3ee', W: '#ffffff' },
+  },
 };
 
 // Colors every floor-based trap brings with it, whatever floor it sits on.
@@ -1403,7 +1941,14 @@ function buildThemeTextures(theme) {
   const oneRight = rotateFrame90CW(ONEWAY_UP_FRAME);
   const oneDown = rotateFrame90CW(oneRight);
   const oneLeft = rotateFrame90CW(oneDown);
-  const portalFrame = art.portalStyle === 'fairy' ? makeFairyRingFrame : makePortalFrame;
+  const portalFrame = { fairy: makeFairyRingFrame, mirror: makeMirrorFrame }[art.portalStyle] || makePortalFrame;
+  const turretFrame = art.turretStyle === 'crossbow' ? makeCrossbowUpFrame : makeTurretUpFrame;
+  const barrels = art.bombStyle === 'barrel';
+  const bombFrame = barrels ? makeBarrelFrame : makeBombFrame;
+  const bombColors = barrels ? BARREL_COLORS : BOMB_COLORS;
+  const boards = art.thinIceStyle === 'boards';
+  const thinIceFrame = boards ? makeFloorboardFrame : makeThinIceFrame;
+  const thinIcePalette = boards ? FLOORBOARD_PALETTE : THIN_ICE_PALETTE;
 
   currentFloorDecor = art.floorDecor;
   const textures = {
@@ -1419,24 +1964,29 @@ function buildThemeTextures(theme) {
     'oneway-left': url(oneLeft, art.oneway),
     start: url(makeStartFrame(), onFloor(art.start)),
     goal: url(makeGoalFrame(), onFloor(art.goal)),
+    'goal-locked': url(makeLockedGoalFrame(), onFloor({
+      T: '#6a6470', U: '#3a3640', V: art.goal.T, L: '#9a98a6', M: '#4a4856',
+    })),
+    lever: url(makeLeverFrame(false), onFloor(LEVER_COLORS)),
+    'lever-on': url(makeLeverFrame(true), onFloor(LEVER_COLORS)),
     hiddenspike: url(makeHiddenSpikeBuilderFrame(), onFloor(art.ghost)),
-    bomb: url(makeBombFrame('armed'), onFloor(BOMB_COLORS)),
-    'bomb-lit': url(makeBombFrame('lit'), onFloor(BOMB_COLORS)),
-    'bomb-gone': url(makeBombFrame('gone'), onFloor(BOMB_COLORS)),
+    bomb: url(bombFrame('armed'), onFloor(bombColors)),
+    'bomb-lit': url(bombFrame('lit'), onFloor(bombColors)),
+    'bomb-gone': url(bombFrame('gone'), onFloor({ ...BOMB_COLORS, ...bombColors })),
     ice: url(makeIceFrame(), art.ice),
     'portal-a': url(portalFrame(), onFloor(art.portalA)),
     'portal-b': url(portalFrame(), onFloor(art.portalB)),
     'imp-h': url(makeImpBuilderFrame('h'), onFloor(IMP_BUILDER_COLORS)),
     'imp-v': url(makeImpBuilderFrame('v'), onFloor(IMP_BUILDER_COLORS)),
-    ...directionalTextures('turret', makeTurretUpFrame(), art.turret),
+    ...directionalTextures('turret', turretFrame(), art.turret),
     ...directionalTextures('vent', makeVentUpFrame(false), VENT_PALETTE),
     ...Object.fromEntries(
       Object.entries(directionalTextures('vent', makeVentUpFrame(true), VENT_PALETTE)).map(([key, u]) => [`${key}-active`, u])
     ),
     ...directionalTextures('current', makeCurrentUpFrame(), art.current),
-    thinice: url(makeThinIceFrame('intact'), THIN_ICE_PALETTE),
-    'thinice-cracked': url(makeThinIceFrame('cracked'), THIN_ICE_PALETTE),
-    'thinice-broken': url(makeThinIceFrame('broken'), THIN_ICE_PALETTE),
+    thinice: url(thinIceFrame('intact'), thinIcePalette),
+    'thinice-cracked': url(thinIceFrame('cracked'), thinIcePalette),
+    'thinice-broken': url(thinIceFrame('broken'), thinIcePalette),
     frost: url(makeFrostFrame(), FROST_PALETTE),
     icicle: url(makeIcicleFrame('hanging'), onFloor(ICICLE_COLORS)),
     'icicle-shaking': url(makeIcicleFrame('shaking'), onFloor(ICICLE_COLORS)),
@@ -1448,6 +1998,12 @@ function buildThemeTextures(theme) {
     'snapjaw-shut': url(makeSnapjawFrame('shut'), SNAPJAW_PALETTE),
     'boar-h': url(makeBoarBuilderFrame('h'), onFloor(BOAR_BUILDER_COLORS)),
     'boar-v': url(makeBoarBuilderFrame('v'), onFloor(BOAR_BUILDER_COLORS)),
+    crusher: url(makeCrusherFrame('up'), onFloor(CRUSHER_PALETTE)),
+    'crusher-down': url(makeCrusherFrame('down'), CRUSHER_PALETTE),
+    plate: url(makePlateFrame(), onFloor(PLATE_COLORS)),
+    gate: url(makeGateFrame(false), onFloor(GATE_COLORS)),
+    'gate-open': url(makeGateFrame(true), onFloor(GATE_COLORS)),
+    ghost: url(makeGhostBuilderFrame(), onFloor(GHOST_PALETTE)),
   };
   currentFloorDecor = null;
   return textures;
@@ -1465,6 +2021,8 @@ function buildHazardTextures(theme) {
     bite: frameToDataURL(makeBiteFrame(), SNAPJAW_PALETTE),
     'icicle-crash': frameToDataURL(makeIcicleCrashFrame(), ICICLE_COLORS),
     'vine-wrap': frameToDataURL(makeVineWrapFrame(), VINE_COLORS),
+    ghost: frameToDataURL(GHOST_FRAME, GHOST_PALETTE),
+    crush: frameToDataURL(makeCrushFrame(), CRUSHER_PALETTE),
   };
 }
 
@@ -1483,6 +2041,12 @@ const PLAYER_PALETTES = {
     Y: '#6b4a2f', h: '#4a3220', W: '#e8b98c', X: '#c99a6d',
     Z: '#5a7a3a', a: '#3a5224', b: '#3a2a1a', c: '#15151a',
     g: '#8a6238', i: '#8fc23a', e: '#ffe066', f: '#ff5c5c',
+  },
+  // A steel helm, a deep-purple tunic and a tattered crimson cloak.
+  castle: {
+    Y: '#9aa0ae', h: '#6a707e', W: '#e8b98c', X: '#c99a6d',
+    Z: '#5a3a8a', a: '#3a2460', b: '#2a2420', c: '#15151a',
+    g: '#6b4a2f', i: '#8a1f2e', e: '#e8dcff', f: '#ff5c5c',
   },
 };
 
@@ -1563,12 +2127,12 @@ function makeGroveBackdropFrame() {
 // Every theme's full tile set. TILE_TEXTURES (lava) is also the default
 // look for anything that doesn't say which theme it's in.
 const THEME_TILE_TEXTURES = Object.fromEntries(
-  ['lava', 'ice', 'grass'].map((theme) => [theme, buildThemeTextures(theme)])
+  Object.keys(THEME_ART).map((theme) => [theme, buildThemeTextures(theme)])
 );
 const TILE_TEXTURES = THEME_TILE_TEXTURES.lava;
 
 const THEME_HAZARD_TEXTURES = Object.fromEntries(
-  ['lava', 'ice', 'grass'].map((theme) => [theme, buildHazardTextures(theme)])
+  Object.keys(THEME_ART).map((theme) => [theme, buildHazardTextures(theme)])
 );
 const HAZARD_TEXTURES = THEME_HAZARD_TEXTURES.lava;
 
@@ -1657,11 +2221,293 @@ const THEME_PLAYER_FRAMES = Object.fromEntries(
 );
 const PLAYER_FRAMES = THEME_PLAYER_FRAMES.lava;
 
+// --- Story cutscene art (see story.js) ---------------------------------------
+// The cutscenes reuse the tile art and the player's frames; these are the
+// few extra pieces the story needs.
+
+// The old Trapwright: the player's own poses (so every animation lines up),
+// with grey hair and beard, a deep-teal robe and a gold mantle. The beard
+// covers the lower face (row 5) and the cheek pixels on row 4.
+const MASTER_PALETTE = {
+  Y: '#cfcac0', h: '#9a958c', W: '#e0b088', X: '#c09070',
+  Z: '#2f6470', a: '#1d4450', b: '#3a2a1a', c: '#15151a',
+  g: '#8a6238', i: '#c8901e', e: '#ffe9a8', f: '#ff5c5c',
+};
+// The figure glimpsed in the dark: the master's shape, all shadow, with two
+// pale eyes.
+const SHADOW_PALETTE = {
+  Y: '#1a1424', h: '#120e1a', W: '#221a2e', X: '#1a1424',
+  Z: '#1e1729', a: '#140f1d', b: '#0e0a14', c: '#d8d0ff',
+  g: '#1a1424', i: '#2a1f3a', e: '#6a5a9a', f: '#221a2e',
+};
+
+function addBeard(frame) {
+  return frame.map((row, y) => {
+    if (y === 5) return row.replace(/[WX]/g, 'Y');
+    if (y === 4) return row.replace(/X/g, 'h');
+    return row;
+  });
+}
+
+function buildBeardedFrames(palette) {
+  return {
+    idle: frameToDataURL(addBeard(makePlayerIdleFrame()), palette),
+    walkA: frameToDataURL(addBeard(makePlayerWalkAFrame()), palette),
+    walkB: frameToDataURL(addBeard(makePlayerWalkBFrame()), palette),
+    hit: frameToDataURL(addBeard(makePlayerHitFrame()), palette),
+    win: frameToDataURL(addBeard(makePlayerWinFrame()), palette),
+  };
+}
+
+// A journal page: curling parchment with lines of ink and a wax seal.
+const JOURNAL_PALETTE = { P: '#e8d8a8', Q: '#c8b07a', R: '#8a7048', I: '#4a3a2a', S: '#b02a2a', T: '#e05a4a' };
+
+function makeJournalFrame() {
+  const g = makeGrid(16, 16);
+  fillRect(g, 3, 2, 10, 12, 'P');
+  fillRect(g, 3, 13, 10, 1, 'Q');
+  fillRect(g, 12, 2, 1, 12, 'Q');
+  setPixel(g, 12, 2, PIXEL_TRANSPARENT);
+  setPixel(g, 11, 2, 'R');
+  setPixel(g, 12, 3, 'R');
+  for (const [y, w] of [[4, 7], [6, 6], [8, 7], [10, 4]]) fillRect(g, 4, y, w, 1, 'I');
+  fillRect(g, 9, 10, 2, 2, 'S');
+  setPixel(g, 9, 10, 'T');
+  return g.map((row) => row.join(''));
+}
+
+// The Trapwright's tools: a hammer and a chisel, crossed.
+const TOOLS_PALETTE = { H: '#9aa0ae', J: '#5a606e', W: '#8a6238', X: '#5a3e24', K: '#e8ecf4' };
+
+function makeToolsFrame() {
+  const g = makeGrid(16, 16);
+  for (let i = 0; i < 9; i++) setPixel(g, 4 + i, 13 - i, 'W');
+  for (let i = 0; i < 9; i++) setPixel(g, 5 + i, 14 - i, 'X');
+  fillRect(g, 10, 2, 5, 3, 'H');
+  fillRect(g, 10, 4, 5, 1, 'J');
+  setPixel(g, 10, 2, 'K');
+  for (let i = 0; i < 6; i++) setPixel(g, 3 + i, 3 + i, 'H');
+  for (let i = 0; i < 3; i++) setPixel(g, 9 + i, 9 + i, 'W');
+  setPixel(g, 12, 12, 'X');
+  setPixel(g, 3, 3, 'K');
+  return g.map((row) => row.join(''));
+}
+
+// A workbench: a plank top on two legs, a cog and a spike half-built on it.
+const WORKBENCH_PALETTE = { W: '#8a6238', X: '#5a3e24', Y: '#b08050', H: '#9aa0ae', J: '#5a606e', R: '#ff7a1f' };
+
+function makeWorkbenchFrame() {
+  const g = makeGrid(16, 16);
+  fillRect(g, 1, 8, 14, 2, 'W');
+  fillRect(g, 1, 8, 14, 1, 'Y');
+  fillRect(g, 1, 10, 14, 1, 'X');
+  fillRect(g, 2, 11, 2, 5, 'X');
+  fillRect(g, 12, 11, 2, 5, 'X');
+  fillRect(g, 3, 5, 4, 3, 'H');
+  for (const [x, y] of [[4, 4], [2, 6], [7, 6], [5, 8]]) setPixel(g, x, y, 'H');
+  setPixel(g, 4, 6, 'J');
+  fillRect(g, 10, 6, 3, 2, 'J');
+  setPixel(g, 11, 5, 'H');
+  setPixel(g, 11, 4, 'R');
+  return g.map((row) => row.join(''));
+}
+
+// --- Chapter badges (see badges.js) -------------------------------------------
+// A medal on a ribbon, one per world: a metal rim (M rim, N its lit
+// upper-left, O its shadowed lower-right) around a dark field (F, with a
+// G inner ring), the world's emblem in the middle (E, H highlight, D
+// accent), and two notched ribbon tails (R, S shade).
+
+const BADGE_EMBLEMS = {
+  flame: [
+    '....E....',
+    '...EE....',
+    '...EEE.E.',
+    '..EEHEEE.',
+    '..EHHHEE.',
+    '.EEHHHHE.',
+    '.EHHDHHE.',
+    '.EHDDDHE.',
+    '..EEEEE..',
+  ],
+  snowflake: [
+    '....E....',
+    '.E..E..E.',
+    '..E.E.E..',
+    '...EHE...',
+    'EEEHDHEEE',
+    '...EHE...',
+    '..E.E.E..',
+    '.E..E..E.',
+    '....E....',
+  ],
+  leaf: [
+    '......EE.',
+    '....EEHE.',
+    '...EEHEE.',
+    '..EEHEEE.',
+    '..EHEEEE.',
+    '.EHEEEE..',
+    '.HEEEE...',
+    'D.EE.....',
+    'D........',
+  ],
+  crown: [
+    '.........',
+    'H...H...H',
+    'E..EEE..E',
+    'EE.EEE.EE',
+    'EEEEEEEEE',
+    'EEDEEEDEE',
+    'EEEEEEEEE',
+    'HHHHHHHHH',
+    '.........',
+  ],
+};
+
+const BADGE_PALETTES = {
+  lava: {
+    M: '#c8702a', N: '#f0a860', O: '#7a3a14', F: '#3a1208', G: '#5a2010',
+    E: '#ff7a1f', H: '#ffe066', D: '#fff6d8', R: '#d8392b', S: '#8a1a14',
+  },
+  ice: {
+    M: '#b8c8dc', N: '#eef6ff', O: '#5a6a86', F: '#12243a', G: '#1e3656',
+    E: '#cfeaff', H: '#7fdcff', D: '#ffffff', R: '#3f78b5', S: '#2a5588',
+  },
+  grass: {
+    M: '#c8a040', N: '#f0d880', O: '#6a5018', F: '#12301a', G: '#1e4626',
+    E: '#6fbf3a', H: '#c8f07a', D: '#8a6238', R: '#4f9a3a', S: '#2e6b2a',
+  },
+  castle: {
+    M: '#e8c04a', N: '#fff0a0', O: '#8a6010', F: '#241536', G: '#34204e',
+    E: '#ffcf4d', H: '#fff6d8', D: '#d8392b', R: '#6a3aaa', S: '#3a2460',
+  },
+};
+
+function makeBadgeFrame(emblem) {
+  const g = makeGrid(24, 28);
+  // Ribbon tails first, so the medal overlaps their tops; each ends in a
+  // notch.
+  for (const [x0, dir] of [[7, -1], [13, 1]]) {
+    let x = x0;
+    for (let y = 14; y < 28; y++) {
+      x = x0 + Math.floor((y - 14) / 4) * dir;
+      fillRect(g, x, y, 4, 1, 'R');
+      setPixel(g, dir < 0 ? x + 3 : x, y, 'S');
+    }
+    setPixel(g, x + 1, 27, PIXEL_TRANSPARENT);
+    setPixel(g, x + 2, 27, PIXEL_TRANSPARENT);
+  }
+  const cx = 11.5, cy = 10.5;
+  for (let y = 0; y < 22; y++) {
+    for (let x = 0; x < 24; x++) {
+      const d = Math.hypot(x - cx, y - cy);
+      if (d > 10) continue;
+      if (d > 8.2) setPixel(g, x, y, x + y < cx + cy - 3 ? 'N' : x + y > cx + cy + 3 ? 'O' : 'M');
+      else if (d > 7.2) setPixel(g, x, y, 'G');
+      else setPixel(g, x, y, 'F');
+    }
+  }
+  BADGE_EMBLEMS[emblem].forEach((row, y) => {
+    [...row].forEach((ch, x) => {
+      if (ch !== PIXEL_TRANSPARENT) setPixel(g, 7 + x, 6 + y, ch);
+    });
+  });
+  return g.map((row) => row.join(''));
+}
+
+const BADGE_TEXTURES = {
+  lava: frameToDataURL(makeBadgeFrame('flame'), BADGE_PALETTES.lava),
+  ice: frameToDataURL(makeBadgeFrame('snowflake'), BADGE_PALETTES.ice),
+  grass: frameToDataURL(makeBadgeFrame('leaf'), BADGE_PALETTES.grass),
+  castle: frameToDataURL(makeBadgeFrame('crown'), BADGE_PALETTES.castle),
+};
+
+const STORY_ACTOR_FRAMES = {
+  master: buildBeardedFrames(MASTER_PALETTE),
+  shadow: buildBeardedFrames(SHADOW_PALETTE),
+};
+
+const STORY_PROP_TEXTURES = {
+  journal: frameToDataURL(makeJournalFrame(), JOURNAL_PALETTE),
+  tools: frameToDataURL(makeToolsFrame(), TOOLS_PALETTE),
+  workbench: frameToDataURL(makeWorkbenchFrame(), WORKBENCH_PALETTE),
+  torch: TITLE_SCREEN_TEXTURES.torch,
+};
+
+// --- Home menu icons -------------------------------------------------------------
+// One per menu button, mostly the story's own props: the gem every room
+// ends at, the master's journal (How To Play), their tools (Creative Mode).
+
+// A page torn from a wall calendar: two binding rings, a red header, and
+// today's square marked with a gem-orange dot.
+const CALENDAR_PALETTE = { K: '#9aa0ae', R: '#c8392b', r: '#8a1a14', P: '#e8d8a8', Q: '#c8b07a', I: '#8a7048', G: '#ff7a1f' };
+
+function makeCalendarFrame() {
+  const g = makeGrid(16, 16);
+  fillRect(g, 2, 3, 12, 11, 'P');
+  fillRect(g, 2, 3, 12, 3, 'R');
+  fillRect(g, 2, 5, 12, 1, 'r');
+  fillRect(g, 2, 13, 12, 1, 'Q');
+  fillRect(g, 13, 3, 1, 11, 'Q');
+  for (const x of [5, 10]) fillRect(g, x, 1, 1, 4, 'K');
+  for (const y of [7, 10]) for (const x of [4, 7, 10]) fillRect(g, x, y, 2, 1, 'I');
+  fillRect(g, 10, 10, 2, 2, 'G');
+  return g.map((row) => row.join(''));
+}
+
+// A five-pointed gold star — the stars a room is rated in.
+const STAR_ICON_FRAME = [
+  '................',
+  '.......Y........',
+  '......YYY.......',
+  '......YHY.......',
+  '.....YYHYY......',
+  'YYYYYYHHHYYYYYY.',
+  '.YYHHHHHHHHHYY..',
+  '..YYHHHHHHHYY...',
+  '...YYHHHHHYY....',
+  '....YHHHHHY.....',
+  '....YHHYHHY.....',
+  '...YHHY.YHHY....',
+  '...YHY...YHY....',
+  '..YYY.....YYY...',
+  '..YY.......YY...',
+  '................',
+];
+const STAR_ICON_COLORS = { Y: '#e8a020', H: '#ffe066' };
+
+// The goal tile's gem (see makeGoalFrame), on its own and drawn larger.
+function makeGemIconFrame() {
+  const g = makeGrid(16, 16);
+  const cx = 7, cy = 8;
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const d = Math.abs(x - cx) + Math.abs(y - cy);
+      const lit = x <= cx && y <= cy;
+      if (d <= 2) setPixel(g, x, y, 'V');
+      else if (d <= 4) setPixel(g, x, y, lit ? 'V' : 'T');
+      else if (d <= 6) setPixel(g, x, y, lit ? 'T' : 'U');
+    }
+  }
+  setPixel(g, 13, 2, 'V'); setPixel(g, 2, 13, 'V'); setPixel(g, 14, 9, 'T');
+  return g.map((row) => row.join(''));
+}
+
+const TITLE_MENU_ICONS = {
+  play: frameToDataURL(makeGemIconFrame(), GOAL_PALETTE),
+  daily: frameToDataURL(makeCalendarFrame(), CALENDAR_PALETTE),
+  creative: STORY_PROP_TEXTURES.tools,
+  howto: STORY_PROP_TEXTURES.journal,
+  credits: frameToDataURL(STAR_ICON_FRAME, STAR_ICON_COLORS),
+};
+
 // Whole-page backdrop per theme (see applyTheme in script.js).
 const PAGE_BACKGROUND_TEXTURES = {
   lava: frameToDataURL(makeVolcanoBackdropFrame(), VOLCANO_PALETTE),
   ice: frameToDataURL(makeGlacierBackdropFrame(), GLACIER_PALETTE),
   grass: frameToDataURL(makeGroveBackdropFrame(), GROVE_PALETTE),
+  castle: frameToDataURL(makeCastleBackdropFrame(), CASTLE_PALETTE),
 };
 
 // Injects the @keyframes for player animation states. These embed the
@@ -1692,9 +2538,44 @@ function themeSpriteStyles(theme, scope) {
     ${scope} .player-sprite-inner.anim-win {
       animation: player-win-bounce-${n} 0.6s ease-in-out infinite;
     }
-    ${scope} .player-sprite-inner.anim-slide,
     ${scope} .player-sprite-inner.anim-held {
       background-image: url("${f.walkB}");
+    }
+    /* Travel poses — see TERRAIN_ANIMATIONS in script.js. They pivot on
+       the feet, so leaning reads as the ground moving under the player. */
+    ${scope} .player-sprite-inner.anim-slip {
+      transform-origin: 50% 100%;
+      animation: player-slip-${n} 0.2s ease-in-out infinite alternate;
+    }
+    ${scope} .player-sprite-inner.anim-shove {
+      transform-origin: 50% 100%;
+      animation: player-shove-${n} 0.14s ease-in-out infinite alternate;
+    }
+    ${scope} .player-sprite-inner.anim-bounce {
+      transform-origin: 50% 100%;
+      animation: player-bounce-${n} 0.17s ease-out infinite alternate;
+    }
+    ${scope} .player-sprite-inner.anim-warp {
+      background-image: url("${f.idle}");
+      animation: player-warp-spin 0.34s linear infinite;
+    }
+    /* Slipping: feet shooting out ahead, leaning back, arms flailing
+       between the flinch pose and a stride. */
+    @keyframes player-slip-${n} {
+      0% { background-image: url("${f.hit}"); transform: skewX(10deg) rotate(-5deg); }
+      50% { background-image: url("${f.walkB}"); transform: skewX(15deg) rotate(-10deg) translateY(-4%); }
+      100% { background-image: url("${f.hit}"); transform: skewX(8deg) rotate(-3deg); }
+    }
+    /* Shoved by a current: stumbling forward, legs scrambling. */
+    @keyframes player-shove-${n} {
+      0% { background-image: url("${f.walkA}"); transform: rotate(7deg) translateX(2%); }
+      50% { background-image: url("${f.walkB}"); transform: rotate(11deg) translateX(5%); }
+      100% { background-image: url("${f.walkA}"); transform: rotate(8deg) translateX(3%); }
+    }
+    /* Flung by a mushroom: arms up, squashing and stretching. */
+    @keyframes player-bounce-${n} {
+      from { background-image: url("${f.win}"); transform: scale(0.9, 1.15); }
+      to { background-image: url("${f.win}"); transform: scale(1.08, 0.92); }
     }
     @keyframes player-walk-cycle-${n} {
       0% { background-image: url("${f.walkA}"); transform: translateY(0); }
@@ -1728,10 +2609,7 @@ function injectSpriteStyles() {
     ${themeSpriteStyles('lava', '')}
     ${themeSpriteStyles('ice', '.theme-ice')}
     ${themeSpriteStyles('grass', '.theme-grass')}
-    .player-sprite-inner.anim-slide {
-      transform-origin: 50% 100%;
-      animation: player-skid 0.14s ease-in-out infinite alternate;
-    }
+    ${themeSpriteStyles('castle', '.theme-castle')}
     /* Struggling against the vines: a small side-to-side tug. */
     .player-sprite-inner.anim-held {
       animation: player-struggle 0.22s ease-in-out infinite alternate;
@@ -1740,11 +2618,10 @@ function injectSpriteStyles() {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-6%); }
     }
-    /* Leaning back and wobbling, feet planted, arms out: skidding on ice
-       rather than walking. */
-    @keyframes player-skid {
-      from { transform: skewX(9deg) rotate(-4deg); }
-      to { transform: skewX(14deg) rotate(-7deg); }
+    /* Spun through a portal (the glide itself shrinks and pops them). */
+    @keyframes player-warp-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
     @keyframes player-struggle {
       from { transform: translateX(-5%) rotate(-3deg); }

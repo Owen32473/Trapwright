@@ -5,7 +5,8 @@
 # and close it (or press Ctrl+C) to stop.
 
 cd "$(dirname "$0")" || exit 1
-PORT=8080
+# 8080 unless the launcher hands us a port (e.g. the preview panel).
+PORT="${PORT:-8080}"
 IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1)
 
 echo ""
