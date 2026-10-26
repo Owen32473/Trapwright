@@ -2597,7 +2597,7 @@ function themeSpriteStyles(theme, scope) {
     }
     @keyframes trap-trigger-flash-${n} {
       0% { filter: brightness(1); }
-      25% { background-image: url("${themeTexture(theme, 'trap-triggered')}"); filter: brightness(2); }
+      25% { filter: brightness(2.2) saturate(1.5); }
       100% { filter: brightness(1); }
     }
   `;
