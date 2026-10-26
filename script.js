@@ -4168,6 +4168,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (sharedLevel) {
       hideTitleScreen();
+      // The grid was hidden above for the title screen; a shared room
+      // skips that screen, so bring it back before the run starts.
+      grid.hidden = false;
       applyTheme(levelTheme(sharedLevel));
       activeSolverStop = startSolverMode(sharedLevel, { ...solverDom(), levelCode: sharedParam });
     } else {
