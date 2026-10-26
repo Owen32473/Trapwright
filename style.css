@@ -1043,38 +1043,38 @@ button.tile {
 }
 
 .tile-empty {
-  background: #4a4038;
+  background-color: #4a4038;
 }
 
 .tile-wall {
-  background: #150f0d;
+  background-color: #150f0d;
 }
 
 .tile-spike {
-  background: #2a222a;
+  background-color: #2a222a;
 }
 
 .tile-start {
-  background: #4a4038;
+  background-color: #4a4038;
 }
 
 .tile-goal {
-  background: #4a4038;
+  background-color: #4a4038;
 }
 
 .tile-timedspike {
-  background: #2a222a;
+  background-color: #2a222a;
 }
 
 .tile-timedspike.timedspike-inactive {
-  background: #2a222a;
+  background-color: #2a222a;
 }
 
 .tile-oneway-up,
 .tile-oneway-right,
 .tile-oneway-down,
 .tile-oneway-left {
-  background: #241d1a;
+  background-color: #241d1a;
 }
 
 .tile-hiddenspike,
@@ -1083,32 +1083,32 @@ button.tile {
 .tile-imp-v,
 .tile-portal-a,
 .tile-portal-b {
-  background: #4a4038;
+  background-color: #4a4038;
 }
 
 .tile-ice {
-  background: #1a1f2b;
+  background-color: #1a1f2b;
 }
 
 .tile-current-up,
 .tile-current-right,
 .tile-current-down,
 .tile-current-left {
-  background: #3a1a10;
+  background-color: #3a1a10;
 }
 
 .tile-vent-up,
 .tile-vent-right,
 .tile-vent-down,
 .tile-vent-left {
-  background: #2a222a;
+  background-color: #2a222a;
 }
 
 .tile-turret-up,
 .tile-turret-right,
 .tile-turret-down,
 .tile-turret-left {
-  background: #241d1a;
+  background-color: #241d1a;
 }
 
 /* An ice tile catching the light as the player skids across it; the
@@ -2184,13 +2184,13 @@ body[data-ambient="castle"] #ambient i {
 
 /* --- New trap tiles and overlays -------------------------------------------- */
 
-.tile-thinice { background: #bfe3f5; }
-.tile-frost { background: #a3bdd6; }
-.tile-snapjaw { background: #4a4f40; }
+.tile-thinice { background-color: #bfe3f5; }
+.tile-frost { background-color: #a3bdd6; }
+.tile-snapjaw { background-color: #4a4f40; }
 .tile-crusher,
 .tile-plate,
 .tile-gate,
-.tile-ghost { background: #57525e; }
+.tile-ghost { background-color: #57525e; }
 
 /* The ghost drifts and flickers. */
 .hazard-ghost {
@@ -2213,7 +2213,7 @@ body[data-ambient="castle"] #ambient i {
 .tile-vines,
 .tile-mushroom,
 .tile-boar-h,
-.tile-boar-v { background: #4a4038; }
+.tile-boar-v { background-color: #4a4038; }
 
 /* Thin ice creaks under the player standing on it. */
 .tile.thinice-underfoot {
