@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="ambient" aria-hidden="true"></div>
   <button id="home-btn" class="pixel-btn" type="button" hidden>← Home</button>
   <button id="mute-btn" class="pixel-btn" type="button" aria-pressed="false" aria-label="Mute sound and music">🔊</button>
   <button id="account-btn" class="pixel-btn" type="button" aria-haspopup="dialog" aria-label="Log in or sign up">
@@ -15,14 +16,13 @@
   </button>
 
   <div id="title-screen">
-    <div class="title-spikes" aria-hidden="true">
-      <div class="title-spike"></div>
-      <div class="title-spike title-spike-tall"></div>
-      <div class="title-spike"></div>
-      <div class="title-spike title-spike-tall"></div>
-      <div class="title-spike"></div>
-      <div class="title-spike title-spike-tall"></div>
-      <div class="title-spike"></div>
+    <div id="title-decor" aria-hidden="true">
+      <div id="title-embers"></div>
+      <div id="title-fireflies"></div>
+      <div class="title-page" id="title-page-1"></div>
+      <div class="title-page" id="title-page-2"></div>
+      <div class="title-page" id="title-page-3"></div>
+      <div id="title-hero"></div>
     </div>
 
     <div id="title-torch-left" class="title-torch" aria-hidden="true"></div>
@@ -30,15 +30,15 @@
 
     <div id="title-content">
       <div id="title-logo"><span>Trap</span><span>wright</span></div>
-      <p id="title-tagline">Every tile is a decision.</p>
+      <p id="title-tagline">Find the master.</p>
       <p id="title-link-error" class="invalid" hidden>That level link looks broken — pick something from the menu instead.</p>
 
       <nav id="title-menu">
-        <button type="button" class="title-btn title-btn-primary" id="title-play-btn">Play</button>
-        <button type="button" class="title-btn" id="title-daily-btn">Daily Puzzle</button>
-        <button type="button" class="title-btn" id="title-builder-btn">Creative Mode</button>
-        <button type="button" class="title-btn" id="title-howto-btn">How To Play</button>
-        <button type="button" class="title-btn" id="title-credits-btn">Credits</button>
+        <button type="button" class="title-btn title-btn-primary" id="title-play-btn"><span class="title-btn-icon" data-icon="play" aria-hidden="true"></span>Play</button>
+        <button type="button" class="title-btn" id="title-daily-btn"><span class="title-btn-icon" data-icon="daily" aria-hidden="true"></span>Daily Puzzle</button>
+        <button type="button" class="title-btn" id="title-builder-btn"><span class="title-btn-icon" data-icon="creative" aria-hidden="true"></span>Creative Mode</button>
+        <button type="button" class="title-btn" id="title-howto-btn"><span class="title-btn-icon" data-icon="howto" aria-hidden="true"></span>How To Play</button>
+        <button type="button" class="title-btn" id="title-credits-btn"><span class="title-btn-icon" data-icon="credits" aria-hidden="true"></span>Credits</button>
       </nav>
     </div>
 
@@ -51,44 +51,68 @@
   <div id="title-howto-modal" class="title-modal" hidden>
     <div class="title-modal-card">
       <h2>How To Play</h2>
-      <p>Move with Arrow Keys or WASD — one step per keypress. On a phone or tablet, swipe on the room or use the arrow pad. Reach the glowing gem to win. Traps keep their own rhythm (one beat is half a second), so don't linger.</p>
-      <p>Play the three worlds in order: beat 8 of a world's levels to unlock the next. Each world ends with its two hardest rooms, both full of levers. Beat every level of all three to open the bonus world, the Abandoned Castle — the hardest rooms in the game. The Daily Puzzle lets you try every world, even locked ones.</p>
-      <p>★ Stars: finish in par — the fewest moves possible — for 3 stars, within half as many again for 2, or any finish for 1.</p>
-      <p>📜 Story: your master, the Trapwright, has vanished. Each world you finish reveals a new chapter of the search. Rewatch them any time from 📜 Story on the world screen.</p>
-      <p>🏅 Badges: beat every level of a world to earn its badge. See yours in your account panel (the button in the top-right corner).</p>
-      <h3>Everywhere</h3>
+      <ol class="howto-steps">
+        <li><strong>Reach the glowing gem.</strong> Move with the Arrow Keys or WASD, one step per press. On a phone, swipe the room.</li>
+        <li><strong>Avoid the traps.</strong> Touch one and you restart the room. No lives, so just try again.</li>
+        <li><strong>Traps have a rhythm.</strong> Watch one for a moment, then move on the safe beat. Don't stand still.</li>
+        <li><strong>Start and gem are always safe.</strong></li>
+      </ol>
+      <p class="howto-tip">💡 A new trap gets a short card the first time you meet it, so you never have to memorize this page.</p>
+      <h3>Good to know</h3>
       <ul>
-        <li>Spikes kill on contact. Timed spikes are deadly for 2 beats, then safe for 2. Hidden spikes look like plain floor until they get you.</li>
-        <li>One-way tiles only let you in from the direction their arrow points. Portals warp you to their matching twin.</li>
-        <li>The start and goal are safe: no fire, creature or blast can reach them.</li>
-        <li>Levers flip each time you step onto them. While any lever is off, the gem is barred shut — get every lever on, then reach it.</li>
+        <li>⭐ <strong>Stars:</strong> fewest moves = 3 stars. Any finish = 1.</li>
+        <li>🔓 <strong>Unlocking:</strong> beat 8 levels of a world to open the next. Beat all three for the bonus castle.</li>
+        <li>🔑 <strong>Levers:</strong> the gem is barred until every lever is on.</li>
+        <li>⏱ <strong>Timed rooms:</strong> beat the clock or the room resets.</li>
+        <li>🛠 <strong>Creative Mode:</strong> build your own room and share it with a link.</li>
       </ul>
-      <h3>Volcanic Depths</h3>
-      <ul>
-        <li>Obsidian ice keeps you sliding; hit something and you glance off to the side (down before up, or right before left). Lava currents shove you along.</li>
-        <li>Lava turrets fire every 3 beats — walk with the shots, never against them. Flame vents glow, then erupt.</li>
-        <li>Fire imps pace back and forth. Step on a bomb and its fuse lights: get two tiles clear.</li>
-      </ul>
-      <h3>Frozen Caverns</h3>
-      <ul>
-        <li>Thin ice breaks the moment you step off it — cross each tile once. A slide stops dead on it.</li>
-        <li>Frostbite patches are safe to cross, but freeze you if you stand on one for a second beat.</li>
-        <li>Walk under a falling icicle and it crashes 3 beats later, leaving a solid block of ice that stops you, your slides, and frost-cannon shots.</li>
-      </ul>
-      <h3>Overgrown Ruins</h3>
-      <ul>
-        <li>Grabbing vines hold you in place for 2 beats. Mushroom pads bounce you 2 tiles on, over whatever is between.</li>
-        <li>Snapjaws rustle, then bite the 4 tiles around them every 6 beats. Wild boars charge 2 tiles per beat.</li>
-        <li>Streams carry you along; fairy rings are the ruins' portals.</li>
-      </ul>
-      <h3>Abandoned Castle</h3>
-      <ul>
-        <li>Crushers are up for 3 beats (they shake on the third), slam down on the 4th, then stay down — solid — for 2.</li>
-        <li>Every pressure plate flips every portcullis: open ones shut, shut ones open. They all start shut.</li>
-        <li>The ghost drifts a tile toward you every other beat, straight through walls — but it can't enter the start or the gem.</li>
-        <li>Rotten floorboards hold you once, like thin ice. Crossbows, powder barrels and magic mirrors work like turrets, bombs and portals.</li>
-      </ul>
-      <p>⏱ Timed rooms: reach the goal before the clock runs out, or the room resets.</p>
+      <h3>Trap guide</h3>
+      <p class="howto-tip">Tap a world to see its traps.</p>
+      <details>
+        <summary>All worlds</summary>
+        <ul>
+          <li>Spikes hurt on touch. Timed spikes: deadly 2 beats, safe 2.</li>
+          <li>Hidden spikes look like plain floor.</li>
+          <li>One-way tiles only let you in the way the arrow points.</li>
+          <li>Portals warp you to their twin.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Volcanic Depths</summary>
+        <ul>
+          <li>Ice: you keep sliding until you hit something.</li>
+          <li>Currents shove you one extra tile.</li>
+          <li>Turrets fire every 3 beats. Walk with the shots, not against them.</li>
+          <li>Vents glow, then erupt. Fire imps pace back and forth.</li>
+          <li>Bombs light when stepped on. Get 2 tiles clear.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Frozen Caverns</summary>
+        <ul>
+          <li>Thin ice breaks once you step off. Cross each tile once.</li>
+          <li>Frostbite: safe to cross, deadly to stand on.</li>
+          <li>Icicles fall 3 beats after you walk under them, then become a solid block.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Overgrown Ruins</summary>
+        <ul>
+          <li>Vines hold you in place for 2 beats.</li>
+          <li>Mushrooms bounce you 2 tiles, over anything between.</li>
+          <li>Snapjaws bite the 4 tiles around them every 6 beats.</li>
+          <li>Wild boars charge 2 tiles per beat.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Abandoned Castle</summary>
+        <ul>
+          <li>Crushers: up 3 beats (shaking on the third), slam, then stay down and solid for 2.</li>
+          <li>Pressure plates flip every portcullis. They start shut.</li>
+          <li>The ghost chases you through walls, but can't enter the start or gem.</li>
+          <li>Crossbows, barrels, mirrors and floorboards act like turrets, bombs, portals and thin ice.</li>
+        </ul>
+      </details>
       <button type="button" class="title-btn" id="title-howto-close-btn">Back</button>
     </div>
   </div>
@@ -96,8 +120,18 @@
   <div id="title-credits-modal" class="title-modal" hidden>
     <div class="title-modal-card">
       <h2>Credits</h2>
-      <p>Trapwright — a pixel-art trap puzzler. Follow the story through three worlds of hand-built rooms and a bonus castle, earn a badge for each, take on the daily puzzle, and use Creative Mode to build and share your own rooms.</p>
-      <p>Every tile, trap, character and cutscene is hand-generated pixel art rendered at runtime, and every sound and tune is synthesized as you play: no image or audio files, no build step.</p>
+      <p class="credits-title">Trapwright</p>
+      <p>A pixel-art trap puzzler. Find your missing master across three worlds and a bonus castle, earn badges, try the Daily Puzzle, and build your own rooms in Creative Mode.</p>
+      <h3>Made by</h3>
+      <p>Owen Glassman</p>
+      <h3>Built with</h3>
+      <ul>
+        <li>Plain HTML, CSS and JavaScript. No game engine.</li>
+        <li>Pixel art drawn in code. No image files.</li>
+        <li>Music and sound effects made live with the Web Audio API. No audio files.</li>
+        <li>Firebase, for optional accounts and cloud saves.</li>
+      </ul>
+      <p>Thanks for playing!</p>
       <p><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></p>
       <button type="button" class="title-btn" id="title-credits-close-btn">Back</button>
     </div>
@@ -212,15 +246,21 @@
   <section id="theme-select" hidden aria-label="Choose a world">
     <div id="theme-carousel">
       <button id="theme-prev" class="theme-arrow" type="button" aria-label="Previous world">◀</button>
-      <div id="theme-card">
-        <div id="theme-preview" aria-hidden="true"></div>
-        <div id="theme-lock" aria-hidden="true">🔒</div>
+      <div id="theme-card-slot">
+        <div id="theme-card">
+          <div id="theme-preview" aria-hidden="true"></div>
+          <div id="theme-lock" aria-hidden="true">🔒</div>
+        </div>
       </div>
       <button id="theme-next" class="theme-arrow" type="button" aria-label="Next world">▶</button>
     </div>
-    <h2 id="theme-name"></h2>
-    <p id="theme-status"></p>
-    <div id="theme-progress" aria-hidden="true"><div id="theme-progress-fill"></div></div>
+    <div id="theme-info-slot">
+      <div id="theme-info">
+        <h2 id="theme-name"></h2>
+        <p id="theme-status"></p>
+        <div id="theme-progress" aria-hidden="true"><div id="theme-progress-fill"></div></div>
+      </div>
+    </div>
     <div id="theme-dots"></div>
     <button id="theme-levels-btn" class="pixel-btn" type="button">Levels</button>
     <button id="story-btn" class="text-btn" type="button">📜 Story</button>
@@ -251,8 +291,14 @@
   </div>
 
   <section id="daily-hub" hidden>
-    <h2>Daily Puzzle — <span id="daily-hub-date"></span></h2>
-    <p id="daily-hub-theme"></p>
+    <div id="daily-hub-banner">
+      <div id="daily-hub-title">
+        <h2><span id="daily-hub-kicker">Daily Puzzle</span> <span id="daily-hub-world"></span></h2>
+        <p id="daily-hub-date"></p>
+      </div>
+      <div id="daily-hub-strip" aria-hidden="true"></div>
+    </div>
+    <p id="daily-hub-theme" hidden></p>
     <p id="daily-hub-streak"></p>
     <div id="daily-hub-columns">
       <div class="daily-hub-column">

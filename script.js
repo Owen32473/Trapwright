@@ -2797,6 +2797,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const dailyHubEl = $('daily-hub');
   const dailyHubDateEl = $('daily-hub-date');
   const dailyHubThemeEl = $('daily-hub-theme');
+  const dailyHubWorldEl = $('daily-hub-world');
+  const dailyHubBannerEl = $('daily-hub-banner');
+  const dailyHubStripEl = $('daily-hub-strip');
   const dailyHubStreakEl = $('daily-hub-streak');
   const dailyHubStatsEl = $('daily-hub-stats');
   const dailyModeBtns = document.querySelectorAll('.daily-mode-btn');
@@ -2811,6 +2814,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const campaignBackBtn = $('campaign-back-btn');
   const themeSelectEl = $('theme-select');
   const themeCardEl = $('theme-card');
+  const themeInfoEl = $('theme-info');
   const themePreviewEl = $('theme-preview');
   const themeNameEl = $('theme-name');
   const themeStatusEl = $('theme-status');
@@ -2845,16 +2849,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Paints the title screen's decorative pixel art (see TITLE_SCREEN_TEXTURES
   // in sprites.js) the same way Creative Mode paints palette icons — a plain
-  // inline background-image, no <img> elements. The riveted-plate button
-  // texture specifically goes through a CSS custom property instead (read by
+  // inline background-image, no <img> elements. The button frame
+  // specifically goes through a CSS custom property instead (read by
   // .title-btn/.pixel-btn in style.css) rather than being set per-element
   // here, since it's shared by every "chrome" button on the game page — see
   // the comment on .pixel-btn in style.css for why that has to be a custom
-  // property and not another per-element inline style.
-  document.documentElement.style.setProperty('--plate-texture', `url("${TITLE_SCREEN_TEXTURES.button}")`);
+  // property and not another per-element inline style. The home menu's
+  // heavier frame goes the same way.
+  document.documentElement.style.setProperty('--plate-frame', `url("${TITLE_SCREEN_TEXTURES.buttonFrame}")`);
+  document.documentElement.style.setProperty('--menu-frame', `url("${TITLE_SCREEN_TEXTURES.menuFrame}")`);
+  titleScreenEl.style.backgroundImage = `url("${TITLE_SCREEN_TEXTURES.backdrop}")`;
   document.querySelectorAll('.title-torch').forEach((el) => { el.style.backgroundImage = `url("${TITLE_SCREEN_TEXTURES.torch}")`; });
-  document.querySelectorAll('.title-spike').forEach((el) => { el.style.backgroundImage = `url("${TITLE_SCREEN_TEXTURES.spike}")`; });
+  document.querySelectorAll('.title-page').forEach((el) => { el.style.backgroundImage = `url("${STORY_PROP_TEXTURES.journal}")`; });
+  document.querySelectorAll('.title-btn-icon').forEach((el) => { el.style.backgroundImage = `url("${TITLE_MENU_ICONS[el.dataset.icon]}")`; });
+  $('title-hero').style.backgroundImage = `url("${THEME_PLAYER_FRAMES.lava.idle}")`;
   $('title-sign-post').style.backgroundImage = `url("${TITLE_SCREEN_TEXTURES.sign}")`;
+  scatterParticles($('title-embers'), 14, 11);
+  scatterParticles($('title-fireflies'), 10, 23);
+  scatterParticles($('ambient'), 36, 37);
   $('trash-icon').style.backgroundImage = `url("${UI_ICON_TEXTURES.trash}")`;
 
   // Switches the page's backdrop and accent colors (body[data-theme] in
@@ -2865,6 +2877,33 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.style.backgroundImage = `url("${PAGE_BACKGROUND_TEXTURES[t]}")`;
   }
   applyTheme('lava');
+
+  // The Daily Puzzle's moving backdrop layer (#ambient — embers, snow,
+  // fireflies or fog, by body[data-ambient] in style.css), so a day's world
+  // shows all around its screens. null turns it off; hideAllModes does.
+  function setAmbient(theme) {
+    if (theme) document.body.dataset.ambient = normalizeTheme(theme);
+    else delete document.body.dataset.ambient;
+  }
+
+  // Fills a decoration layer with `count` particles (plain <i>s). Each gets
+  // its place, size, speed, start offset and drift as custom properties
+  // (--x --y --s --t --d --o), from a fixed seed so the scatter is the same
+  // every visit; the layer's own CSS decides what they look like and how
+  // they move.
+  function scatterParticles(container, count, seed) {
+    const rng = mulberry32(seed);
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('i');
+      p.style.setProperty('--x', `${(rng() * 100).toFixed(1)}%`);
+      p.style.setProperty('--y', `${(rng() * 100).toFixed(1)}%`);
+      p.style.setProperty('--s', `${[3, 4, 4, 6][Math.floor(rng() * 4)]}px`);
+      p.style.setProperty('--t', `${(7 + rng() * 9).toFixed(1)}s`);
+      p.style.setProperty('--d', `${(-rng() * 16).toFixed(1)}s`);
+      p.style.setProperty('--o', `${Math.round((rng() - 0.5) * 140)}px`);
+      container.appendChild(p);
+    }
+  }
 
   // --- Mode state -----------------------------------------------------------
 
@@ -2941,6 +2980,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // function starts by calling this, so no mode can leak UI (or a running
   // solver's keydown listener) into another.
   function hideAllModes() {
+    finishWorldSlide();
     stopSolver();
     builderMode = false;
     builderLevel = null;
@@ -2952,6 +2992,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resetDragState();
     hideClearAllConfirm();
     hideResetProgressConfirm();
+    setAmbient(null);
 
     [
       controlsEl, trapCounterEl, validateBtn, shareBtn, shareOutputEl,
@@ -3087,10 +3128,7 @@ document.addEventListener('DOMContentLoaded', () => {
       dot.type = 'button';
       dot.className = `theme-dot${i === selectedThemeIdx ? ' active' : ''}`;
       dot.setAttribute('aria-label', `Show ${THEME_INFO[t].name}`);
-      dot.addEventListener('click', () => {
-        selectedThemeIdx = i;
-        renderThemeSelect();
-      });
+      dot.addEventListener('click', () => showTheme(i, Math.sign(i - selectedThemeIdx)));
       themeDotsEl.appendChild(dot);
     });
 
@@ -3099,9 +3137,84 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function stepTheme(delta) {
-    selectedThemeIdx = mod(selectedThemeIdx + delta, THEMES.length);
+    showTheme(mod(selectedThemeIdx + delta, THEMES.length), delta);
+  }
+
+  // Switching worlds slides the screen over: the current world (its card,
+  // and its name/status/progress) slides out one side while the next one
+  // slides in from the other, and the page backdrop slides across with
+  // them. `dir` is +1 for the next world (everything moves left), -1 for
+  // the previous. Instant for anyone who prefers reduced motion.
+  const WORLD_SLIDE_MS = 420;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let worldSlide = null; // { animations, leftovers } while a slide runs
+
+  // Jumps any slide still running straight to its end and clears away its
+  // departing copies, so a quick double-press starts clean.
+  function finishWorldSlide() {
+    if (!worldSlide) return;
+    worldSlide.animations.forEach((a) => a.cancel());
+    worldSlide.leftovers.forEach((el) => el.remove());
+    worldSlide = null;
+  }
+
+  // A copy of el left in its place to slide away. It keeps el's ids: the
+  // card, its preview grid and the world name are all styled by id, and a
+  // copy without them would lose its size and look mid-slide. The copy goes
+  // after el in the same parent, so a lookup by id still finds the real
+  // one first, and it's gone again within WORLD_SLIDE_MS.
+  function departingCopy(el) {
+    const copy = el.cloneNode(true);
+    copy.classList.add('world-slide-ghost');
+    copy.setAttribute('aria-hidden', 'true');
+    el.parentElement.appendChild(copy);
+    return copy;
+  }
+
+  function backdropLayer(image) {
+    const layer = document.createElement('div');
+    layer.className = 'world-slide-backdrop';
+    layer.style.backgroundImage = image;
+    document.body.appendChild(layer);
+    return layer;
+  }
+
+  function showTheme(idx, dir) {
+    if (idx === selectedThemeIdx) return;
+    finishWorldSlide();
+    const animate = dir !== 0 && !reducedMotion.matches && !themeSelectEl.hidden;
+    const parts = [themeCardEl, themeInfoEl];
+    const copies = animate ? parts.map(departingCopy) : [];
+    const oldBackdrop = document.body.style.backgroundImage;
+
+    selectedThemeIdx = idx;
     hideResetProgressConfirm();
     renderThemeSelect();
+    if (!animate) return;
+
+    const panelWidth = themeSelectEl.getBoundingClientRect().width;
+    const screenWidth = window.innerWidth;
+    const outgoing = backdropLayer(oldBackdrop);
+    const incoming = backdropLayer(document.body.style.backgroundImage);
+    const timing = { duration: WORLD_SLIDE_MS, easing: 'cubic-bezier(0.22, 0.8, 0.24, 1)' };
+    const slide = (el, from, to) => el.animate(
+      [{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }],
+      timing
+    );
+    const animations = [
+      ...parts.map((el) => slide(el, dir * panelWidth, 0)),
+      ...copies.map((el) => slide(el, 0, -dir * panelWidth)),
+      slide(incoming, dir * screenWidth, 0),
+      slide(outgoing, 0, -dir * screenWidth),
+    ];
+    const current = { animations, leftovers: [...copies, outgoing, incoming] };
+    worldSlide = current;
+    const done = () => { if (worldSlide === current) finishWorldSlide(); };
+    animations[0].finished.then(done, () => {});
+    // Backstop: a page that isn't drawing frames (a hidden tab) never runs
+    // its animations, so tidy up on a timer too rather than leave the
+    // departing copies lying around.
+    setTimeout(done, WORLD_SLIDE_MS + 150);
   }
   themePrevBtn.addEventListener('click', () => stepTheme(-1));
   themeNextBtn.addEventListener('click', () => stepTheme(1));
@@ -3849,6 +3962,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Daily Puzzle: hub UI + wiring --------------------------------------
 
+  // The hub's banner: a row of the day's world's own tiles under its
+  // backdrop, like a cutscene's stage — the hero at the start, a few of that
+  // world's traps, the gem at the end.
+  const DAILY_HUB_STRIPS = {
+    lava: ['empty', 'empty', 'spike', 'empty', 'ice', 'ice', 'empty', 'bomb', 'empty', 'timedspike-active', 'empty', 'goal'],
+    ice: ['empty', 'empty', 'thinice', 'frost', 'empty', 'icicle', 'ice', 'ice', 'empty', 'spike', 'empty', 'goal'],
+    grass: ['empty', 'empty', 'vines', 'empty', 'mushroom', 'empty', 'snapjaw', 'empty', 'empty', 'spike', 'empty', 'goal'],
+    castle: ['empty', 'empty', 'plate', 'empty', 'crusher', 'empty', 'thinice', 'empty', 'gate-open', 'spike', 'empty', 'goal'],
+  };
+
+  function renderDailyHubBanner(theme) {
+    dailyHubBannerEl.style.backgroundImage = `url("${PAGE_BACKGROUND_TEXTURES[theme]}")`;
+    dailyHubStripEl.replaceChildren(...DAILY_HUB_STRIPS[theme].map((key) => {
+      const tile = document.createElement('span');
+      tile.style.backgroundImage = `url("${themeTexture(theme, key)}")`;
+      return tile;
+    }));
+    const hero = document.createElement('span');
+    hero.className = 'daily-hub-hero';
+    hero.style.backgroundImage = `url("${THEME_PLAYER_FRAMES[theme].idle}")`;
+    dailyHubStripEl.appendChild(hero);
+  }
+
   // Refreshes the hub's date/theme/streak/stats text and each mode button's
   // completed state — called whenever the hub is (re)shown and right after
   // a challenge completes, so it's always current by the time the player
@@ -3860,8 +3996,11 @@ document.addEventListener('DOMContentLoaded', () => {
     saveDailyStats(stats); // persist a same-day rollover reset immediately
 
     dailyHubDateEl.textContent = dateStr;
-    dailyHubThemeEl.textContent = `Today's theme: ${THEME_INFO[theme].name}` +
-      (isThemeUnlocked(loadProgress(), theme) ? '' : ' — a sneak peek, it’s still locked in the campaign!');
+    dailyHubWorldEl.textContent = THEME_INFO[theme].name;
+    renderDailyHubBanner(theme);
+    const locked = !isThemeUnlocked(loadProgress(), theme);
+    dailyHubThemeEl.hidden = !locked;
+    dailyHubThemeEl.textContent = locked ? 'A sneak peek: this world is still locked in the campaign!' : '';
     dailyHubStreakEl.textContent = stats.currentStreak > 0
       ? `🔥 Current streak: ${stats.currentStreak} day${stats.currentStreak === 1 ? '' : 's'} (best: ${stats.bestStreak})`
       : `No active streak yet (best: ${stats.bestStreak}).`;
@@ -3881,7 +4020,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function enterDailyHub() {
     hideAllModes();
     hideTitleScreen();
-    applyTheme(dailyThemeFor(getTodayDateString()));
+    const theme = dailyThemeFor(getTodayDateString());
+    applyTheme(theme);
+    setAmbient(theme);
     controlsEl.hidden = false;
     dailyToggleBtn.textContent = 'Exit Daily Puzzle';
     grid.hidden = true;
@@ -3905,6 +4046,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hideTitleScreen();
     currentDailyChallenge = { type: 'solver', difficulty, dateStr };
     applyTheme(level.theme);
+    setAmbient(level.theme);
     dailySolverBackBtn.hidden = false;
     winModalDailyBackBtn.hidden = false;
 
@@ -3932,6 +4074,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hideAllModes();
     hideTitleScreen();
     currentDailyChallenge = { type: 'builder', difficulty, dateStr, constraints };
+    setAmbient(constraints.theme);
 
     activeBuilderSize = constraints.size;
     activeTrapBudget = constraints.trapBudget;

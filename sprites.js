@@ -50,8 +50,9 @@ function rotateFrame90CW(frame) {
 // whatever box it's given instead — needed for art stretched over
 // variable-width UI like the button plate, which otherwise shrinks to a
 // letterboxed strip in the middle of a wide button and lets the label run
-// off its edges.
-function frameToDataURL(frame, palette, { stretch = false } = {}) {
+// off its edges. `intrinsic` gives the SVG a pixel size (one CSS px per
+// pixel) — border-image slices are counted in those pixels.
+function frameToDataURL(frame, palette, { stretch = false, intrinsic = false } = {}) {
   const rows = frame.length;
   const cols = frame[0].length;
   let rects = '';
@@ -64,7 +65,8 @@ function frameToDataURL(frame, palette, { stretch = false } = {}) {
     }
   }
   const aspect = stretch ? ' preserveAspectRatio="none"' : '';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${cols} ${rows}"${aspect} shape-rendering="crispEdges">${rects}</svg>`;
+  const size = intrinsic ? ` width="${cols}" height="${rows}"` : '';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${cols} ${rows}"${size}${aspect} shape-rendering="crispEdges">${rects}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
@@ -647,25 +649,199 @@ function makePlayerWinFrame() {
 // the tile/player art above (a small bitmap grid + palette -> inline SVG),
 // just for UI chrome instead of gameplay tiles.
 
-const TITLE_BUTTON_PALETTE = { M: '#5a5a66', O: '#7a7a88', N: '#38383f', P: '#1a1a1e' };
+// The chrome every button wears: a bronze trim around a dark face, the
+// same metal-on-shadow look as the chapter badges' rims and the cutscenes'
+// caption boxes. Drawn ring by ring from the edge in: `rings` names each
+// ring's color, where 'trim' is lit on its top/left (H) and shadowed on its
+// bottom/right (S), meeting in G at the two mixed corners. The outermost
+// corner pixels are cut off, and the middle is left empty (the face is the
+// button's own CSS background). `studs` are single bright B pixels.
+const BUTTON_PLATE_PALETTE = {
+  K: '#0e0a0c', H: '#d8a850', G: '#a87428', S: '#5a3c14', D: '#140f17', B: '#ffe9a8',
+};
 
-// A riveted steel plate — the same bevel language as drawSpikePlateBase
-// above (light top/left edge, dark bottom/right edge, corner rivets) — so
-// the menu buttons read as the same "trap mechanism" material as the spike
-// tiles in the game itself, not an unrelated UI skin. Stretched via CSS
-// background-size to whatever size a .title-btn ends up, same as tiles.
-function makeTitleButtonFrame() {
-  const w = 40, h = 12;
-  const g = makeGrid(w, h, 'M');
-  fillRect(g, 0, 0, w, 1, 'O');
-  fillRect(g, 0, 0, 1, h, 'O');
-  fillRect(g, 0, h - 1, w, 1, 'P');
-  fillRect(g, w - 1, 0, 1, h, 'P');
-  fillRect(g, 1, 1, w - 2, 1, 'O');
-  fillRect(g, 1, h - 2, w - 2, 1, 'N');
-  for (const [x, y] of [[2, 2], [w - 4, 2], [2, h - 4], [w - 4, h - 4]]) {
-    fillRect(g, x, y, 2, 2, 'N');
-    setPixel(g, x, y, 'P');
+function makeButtonPlateFrame(w, h, rings, { studs = [] } = {}) {
+  const g = makeGrid(w, h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const d = Math.min(x, y, w - 1 - x, h - 1 - y);
+      const ring = rings[d];
+      if (ring === undefined) continue;
+      const top = y === d, left = x === d, bottom = y === h - 1 - d, right = x === w - 1 - d;
+      if (d === 0 && (top || bottom) && (left || right)) continue;
+      if (ring !== 'trim') setPixel(g, x, y, ring);
+      else if ((top && right) || (bottom && left)) setPixel(g, x, y, 'G');
+      else setPixel(g, x, y, top || left ? 'H' : 'S');
+    }
+  }
+  for (const [x, y] of studs) setPixel(g, x, y, 'B');
+  return g.map((row) => row.join(''));
+}
+
+// Every button's frame (.pixel-btn, .title-btn, the level plates — see
+// style.css): the three thin rings with a stud at each inner corner, as a
+// 9-slice border-image (3px slices) so the trim stays crisp and the same
+// thickness on a button of any size. The face is the button's own
+// background.
+function makeButtonFrame() {
+  return makeButtonPlateFrame(8, 8, ['K', 'trim', 'D'], { studs: [[2, 2], [5, 2], [2, 5], [5, 5]] });
+}
+
+// The home menu's frame: the same, heavier — a fourth, gold ring, a
+// brighter gilt, and 4px slices.
+const MENU_FRAME_PALETTE = { ...BUTTON_PLATE_PALETTE, H: '#f0c860', G: '#c8901e', S: '#7a5418' };
+
+function makeMenuFrame() {
+  return makeButtonPlateFrame(12, 12, ['K', 'trim', 'G', 'D'], { studs: [[2, 2], [9, 2], [2, 9], [9, 9]] });
+}
+
+// --- The home screen's backdrop ----------------------------------------------
+// The view out of the Trapwright's workshop door, at the foot of the
+// mountain (where the prologue starts): every world of the story in one
+// night scene — the volcano glowing on the left, the frozen peaks behind,
+// the castle on its crag under the moon on the right, and the overgrown
+// forest along the bottom with a path running into it. The menu covers
+// the middle, so the worlds sit to the sides and along the bottom.
+
+const HOME_PALETTE = {
+  1: '#07050e', 2: '#0c0818', 3: '#130c22', 4: '#1b112c', 5: '#261532', 6: '#371a36', 7: '#4e2034', 8: '#6e2a30',
+  S: '#ffffff', s: '#8a84a8',
+  O: '#e8e4d0', P: '#c8c2aa', Q: '#4a4470',
+  M: '#18203a', N: '#26324e', W: '#d6ecff', w: '#86a6c8',
+  V: '#150c12', U: '#24121a', L: '#ff7a1f', G: '#ffcf4d', Y: '#fff6d8', R: '#c8501e',
+  C: '#0d0a15', c: '#3a3058', Z: '#c9b8ff',
+  t: '#10200f', T: '#08120a', F: '#fff27a', D: '#1e1610',
+  A: '#2e2522', a: '#3e322c', B: '#140e0c', e: '#6a4630',
+};
+
+// Mountains as straight-sided peaks ({ x, h, slope }), filled from each
+// column's top down to the canvas bottom. `cap` flattens every peak at that
+// height (a crater). Returns each column's top row, or -1 where nothing was
+// drawn.
+function fillPeaks(g, peaks, baseY, ch, cap = Infinity) {
+  const w = g[0].length, h = g.length;
+  const tops = [];
+  for (let x = 0; x < w; x++) {
+    let height = 0;
+    for (const p of peaks) height = Math.max(height, p.h - Math.abs(x - p.x) * p.slope);
+    height = Math.min(height, cap);
+    if (height < 1) { tops.push(-1); continue; }
+    const top = Math.round(baseY - height);
+    for (let y = Math.max(0, top); y < h; y++) setPixel(g, x, y, ch);
+    tops.push(top);
+  }
+  return tops;
+}
+
+function makeHomeBackdropFrame() {
+  const w = 128, h = 96;
+  const g = makeGrid(w, h);
+  const skyStops = ['1', '1', '2', '2', '3', '4', '5', '6', '7', '8'];
+  const skyAt = (y) => skyStops[Math.min(skyStops.length - 1, Math.floor((y / h) * skyStops.length))];
+  for (let y = 0; y < h; y++) fillRect(g, 0, y, w, 1, skyAt(y));
+
+  // Stars, then the moon (with a dithered halo and craters) behind where
+  // the castle will stand.
+  const mx = 106, my = 30;
+  for (let k = 0; k < 46; k++) {
+    const x = (k * 53 + 11) % w, y = (k * 29 + 5) % 52;
+    if (Math.hypot(x - mx, y - my) > 10) setPixel(g, x, y, k % 3 === 0 ? 'S' : 's');
+  }
+  for (let y = my - 9; y <= my + 9; y++) {
+    for (let x = mx - 9; x <= mx + 9; x++) {
+      const d = Math.hypot(x - mx, y - my);
+      if (d < 6.5) setPixel(g, x, y, 'O');
+      else if (d < 8.5 && (x + y) % 2 === 0) setPixel(g, x, y, 'Q');
+    }
+  }
+  for (const [x, y] of [[104, 28], [108, 32], [107, 27], [103, 32]]) setPixel(g, x, y, 'P');
+
+  // The Frozen Caverns' peaks, far off in the middle: snow caps, and the
+  // moonlit (right-hand) faces a shade lighter.
+  const icePeaks = [{ x: 50, h: 30, slope: 1.1 }, { x: 66, h: 38, slope: 1.2 }, { x: 82, h: 29, slope: 1.1 }];
+  const iceTops = fillPeaks(g, icePeaks, 80, 'M');
+  iceTops.forEach((top, x) => {
+    if (top < 0) return;
+    const nearest = icePeaks.reduce((a, b) => (Math.abs(x - a.x) <= Math.abs(x - b.x) ? a : b));
+    const moonlit = x > nearest.x;
+    const cap = 3 + ((x * 5) % 3);
+    for (let y = top; y < h; y++) {
+      if (y < top + cap) setPixel(g, x, y, moonlit ? 'w' : 'W');
+      else if (moonlit) setPixel(g, x, y, 'N');
+    }
+  });
+
+  // The Volcanic Depths: a cone on the left with a glowing crater, lava
+  // seams running down it and sparks thrown up out of it.
+  const cone = [{ x: 24, h: 44, slope: 1.15 }];
+  const coneTops = fillPeaks(g, cone, 84, 'V', 40);
+  coneTops.forEach((top, x) => {
+    if (top < 0 || x <= 24) return;
+    for (let y = top; y < h; y++) setPixel(g, x, y, 'U');
+  });
+  for (let i = 0; i < 20; i++) setPixel(g, 22 - Math.floor(i * 0.55), 45 + i, i % 4 === 3 ? 'R' : 'L');
+  for (let i = 0; i < 13; i++) setPixel(g, 27 + Math.floor(i * 0.7), 45 + i, i % 3 === 2 ? 'R' : 'L');
+  fillRect(g, 21, 44, 7, 2, 'G');
+  fillRect(g, 23, 44, 3, 1, 'Y');
+  for (let x = 20; x <= 28; x += 2) setPixel(g, x, 43, 'L');
+  for (const [x, y] of [[23, 40], [26, 38], [21, 36], [25, 33]]) setPixel(g, x, y, 'G');
+
+  // The Abandoned Castle on its crag: a curtain wall, towers (one broken)
+  // and two lit windows.
+  fillPeaks(g, [{ x: 108, h: 26, slope: 0.9 }], 86, 'C');
+  fillRect(g, 95, 52, 24, 10, 'C');
+  for (let x = 95; x < 119; x += 2) setPixel(g, x, 51, 'C');
+  const tower = (x0, width, top, broken) => {
+    fillRect(g, x0, top, width, 52 - top, 'C');
+    for (let x = x0; x < x0 + width; x += 2) setPixel(g, x, top - 1, 'C');
+    if (!broken) return;
+    // Knock a jagged bite out of the top, back to the sky behind it.
+    for (let k = 0; k < width; k++) {
+      for (let y = top - 1; y < top + [1, 3, 2, 0][k % 4]; y++) setPixel(g, x0 + k, y, skyAt(y));
+    }
+  };
+  tower(96, 4, 44, false);
+  tower(103, 6, 36, false);
+  tower(105, 2, 32, false);
+  tower(112, 4, 42, true);
+  // Moonlight catches each tower's left edge (below the moon itself, which
+  // they stand in front of), so the silhouette stands out from the night.
+  for (const [x, top] of [[96, 44], [103, 38], [112, 44], [95, 52]]) {
+    for (let y = top; y < 52 + (x === 95 ? 10 : 0); y++) if (g[y][x] === 'C') setPixel(g, x, y, 'c');
+  }
+  for (const [x, y] of [[106, 40], [98, 48], [104, 46], [113, 48], [108, 56], [100, 57]]) setPixel(g, x, y, 'Z');
+
+  // The Overgrown Ruins' forest: a far treeline, a nearer one, fireflies,
+  // and a path cut through it toward the mountains.
+  fillSilhouette(g, [2, 4, 6, 8, 6, 4, 3, 5, 7, 9, 7, 5, 3, 2, 4, 6], 86, 't');
+  fillSilhouette(g, [3, 6, 9, 12, 9, 6, 4, 7, 10, 13, 10, 7, 4, 3, 6, 8], 97, 'T');
+  for (let y = 86; y < h; y++) {
+    const half = 1 + Math.floor((y - 86) * 0.8);
+    fillRect(g, 64 - half, y, half * 2, 1, 'D');
+  }
+  for (const [x, y] of [[14, 84], [33, 88], [47, 81], [79, 86], [92, 83], [110, 89], [58, 90], [121, 82]]) {
+    setPixel(g, x, y, 'F');
+  }
+
+  // The doorway: stone pillars up the sides and an arch across the top,
+  // laid in courses, its inner edge warm with torchlight.
+  const cx = 63.5;
+  const open = (x, y) => {
+    if (x < 0 || x >= w || y < 0 || y >= h) return false;
+    const t = (30 - y) / 27;
+    const half = y >= 30 ? 52 : (t < 1 ? 52 * Math.sqrt(1 - t * t) : 0);
+    return Math.abs(x - cx) < half;
+  };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (open(x, y)) continue;
+      const course = Math.floor(y / 5);
+      let ch = 'A';
+      if (y % 5 === 4 || x % 8 === (course % 2 ? 4 : 0)) ch = 'B';
+      else if ((x * 13 + y * 7) % 17 === 0) ch = 'a';
+      if (ch !== 'B' && (open(x - 1, y) || open(x + 1, y) || open(x, y + 1))) ch = 'e';
+      setPixel(g, x, y, ch);
+    }
   }
   return g.map((row) => row.join(''));
 }
@@ -688,21 +864,6 @@ function makeTorchFrame() {
   return g.map((row) => row.join(''));
 }
 
-const TITLE_SPIKE_SILHOUETTE_PALETTE = { S: '#0c0c10', T: '#1a1a20' };
-
-// A jagged dark spike silhouette lining the title screen's floor — the
-// "trees" of a dungeon skyline, and a quiet nod to the game's own hazard
-// tiles rather than an unrelated background prop.
-function makeSpikeSilhouetteFrame() {
-  const g = makeGrid(10, 16);
-  for (let row = 0; row < 12; row++) {
-    const half = Math.max(1, 5 - Math.floor(row / 2.4));
-    fillRect(g, 5 - half, row, half * 2, 1, row % 4 === 0 ? 'T' : 'S');
-  }
-  fillRect(g, 2, 12, 6, 4, 'S');
-  return g.map((row) => row.join(''));
-}
-
 const TITLE_SIGN_PALETTE = { W: '#6b4a2f', X: '#4a3220', Y: '#8a6238' };
 
 // A plain wooden signpost — stands in for the reference image's signpost,
@@ -720,9 +881,10 @@ function makeSignpostFrame() {
 }
 
 const TITLE_SCREEN_TEXTURES = {
-  button: frameToDataURL(makeTitleButtonFrame(), TITLE_BUTTON_PALETTE, { stretch: true }),
+  buttonFrame: frameToDataURL(makeButtonFrame(), BUTTON_PLATE_PALETTE, { intrinsic: true }),
+  menuFrame: frameToDataURL(makeMenuFrame(), MENU_FRAME_PALETTE, { intrinsic: true }),
+  backdrop: frameToDataURL(makeHomeBackdropFrame(), HOME_PALETTE),
   torch: frameToDataURL(makeTorchFrame(), TITLE_TORCH_PALETTE),
-  spike: frameToDataURL(makeSpikeSilhouetteFrame(), TITLE_SPIKE_SILHOUETTE_PALETTE),
   sign: frameToDataURL(makeSignpostFrame(), TITLE_SIGN_PALETTE),
 };
 
@@ -2271,6 +2433,73 @@ const STORY_PROP_TEXTURES = {
   tools: frameToDataURL(makeToolsFrame(), TOOLS_PALETTE),
   workbench: frameToDataURL(makeWorkbenchFrame(), WORKBENCH_PALETTE),
   torch: TITLE_SCREEN_TEXTURES.torch,
+};
+
+// --- Home menu icons -------------------------------------------------------------
+// One per menu button, mostly the story's own props: the gem every room
+// ends at, the master's journal (How To Play), their tools (Creative Mode).
+
+// A page torn from a wall calendar: two binding rings, a red header, and
+// today's square marked with a gem-orange dot.
+const CALENDAR_PALETTE = { K: '#9aa0ae', R: '#c8392b', r: '#8a1a14', P: '#e8d8a8', Q: '#c8b07a', I: '#8a7048', G: '#ff7a1f' };
+
+function makeCalendarFrame() {
+  const g = makeGrid(16, 16);
+  fillRect(g, 2, 3, 12, 11, 'P');
+  fillRect(g, 2, 3, 12, 3, 'R');
+  fillRect(g, 2, 5, 12, 1, 'r');
+  fillRect(g, 2, 13, 12, 1, 'Q');
+  fillRect(g, 13, 3, 1, 11, 'Q');
+  for (const x of [5, 10]) fillRect(g, x, 1, 1, 4, 'K');
+  for (const y of [7, 10]) for (const x of [4, 7, 10]) fillRect(g, x, y, 2, 1, 'I');
+  fillRect(g, 10, 10, 2, 2, 'G');
+  return g.map((row) => row.join(''));
+}
+
+// A five-pointed gold star — the stars a room is rated in.
+const STAR_ICON_FRAME = [
+  '................',
+  '.......Y........',
+  '......YYY.......',
+  '......YHY.......',
+  '.....YYHYY......',
+  'YYYYYYHHHYYYYYY.',
+  '.YYHHHHHHHHHYY..',
+  '..YYHHHHHHHYY...',
+  '...YYHHHHHYY....',
+  '....YHHHHHY.....',
+  '....YHHYHHY.....',
+  '...YHHY.YHHY....',
+  '...YHY...YHY....',
+  '..YYY.....YYY...',
+  '..YY.......YY...',
+  '................',
+];
+const STAR_ICON_COLORS = { Y: '#e8a020', H: '#ffe066' };
+
+// The goal tile's gem (see makeGoalFrame), on its own and drawn larger.
+function makeGemIconFrame() {
+  const g = makeGrid(16, 16);
+  const cx = 7, cy = 8;
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const d = Math.abs(x - cx) + Math.abs(y - cy);
+      const lit = x <= cx && y <= cy;
+      if (d <= 2) setPixel(g, x, y, 'V');
+      else if (d <= 4) setPixel(g, x, y, lit ? 'V' : 'T');
+      else if (d <= 6) setPixel(g, x, y, lit ? 'T' : 'U');
+    }
+  }
+  setPixel(g, 13, 2, 'V'); setPixel(g, 2, 13, 'V'); setPixel(g, 14, 9, 'T');
+  return g.map((row) => row.join(''));
+}
+
+const TITLE_MENU_ICONS = {
+  play: frameToDataURL(makeGemIconFrame(), GOAL_PALETTE),
+  daily: frameToDataURL(makeCalendarFrame(), CALENDAR_PALETTE),
+  creative: STORY_PROP_TEXTURES.tools,
+  howto: STORY_PROP_TEXTURES.journal,
+  credits: frameToDataURL(STAR_ICON_FRAME, STAR_ICON_COLORS),
 };
 
 // Whole-page backdrop per theme (see applyTheme in script.js).

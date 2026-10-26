@@ -17,8 +17,9 @@ index.html   - page shell: #title-screen (home/title screen — see Title
                screens — see Campaign below), #controls (Creative Mode
                toggle, Daily Puzzle toggle, trap counter, Validate
                button, Share button; starts `hidden`), #daily-hub
-               (date/streak/stats + solver/builder x easy/medium/hard mode
-               buttons), #daily-builder-bar (target constraints + Submit to
+               (the day's world banner, streak/stats + solver/builder x
+               easy/medium/hard mode buttons), #ambient (the Daily
+               Puzzle's moving world layer), #daily-builder-bar (target constraints + Submit to
                Bot + back button, shown during a daily builder challenge),
                #level-heading (campaign level name), #solver-info
                instructions, #solver-stats (time/move/death counters +
@@ -640,7 +641,8 @@ goal brightest.
   (`makeGroveBackdropFrame`). `applyTheme(theme)` in script.js sets the
   body backdrop and `body[data-theme]`, which drives `--theme-accent`/
   `--theme-glow` in style.css (headings, progress bar, grid glow). The
-  title screen always uses lava.
+  title screen has a backdrop of its own (see Title screen → Pixel art)
+  over the lava theme.
 
 ### Player character and animation states
 
@@ -1416,9 +1418,41 @@ yet" instead of crashing the hub.
 
 `#daily-hub` is a menu, not a board — the grid is hidden while it's up,
 and the page takes on the day's theme. `renderDailyHubUI()` refreshes the
-date/theme/streak/stats text and each `.daily-mode-btn`'s completed
+date/world/streak/stats text and each `.daily-mode-btn`'s completed
 state (a ✓ suffix + `.completed` styling) from `loadDailyStats()` every time
 the hub is (re)shown.
+
+The hub is a dark glass card in the day's world's colors (`--theme-accent`
+/ `--theme-glow`), so the world shows around and through it. Its top is a
+banner of that world (`renderDailyHubBanner`): the world's page backdrop
+cropped to its sky and peaks and lit from below in its accent color, with
+"Daily Puzzle", the world's name (in the cutscenes' chapter-card
+wordmark) and the date over it, and under it a strip of twelve of that
+world's own tiles (`DAILY_HUB_STRIPS` — a few of its signature traps,
+the gem at the end) with the hero, dressed for that world, standing on
+the first, like a cutscene's stage. When the day's world is still locked
+in the campaign, a line under the banner says it's a sneak peek.
+
+### World layer (`#ambient`)
+
+On every Daily Puzzle screen — the hub, a solver challenge and a builder
+challenge — the day's world also moves all around the page, so each map
+type has a background of its own beyond the campaign's backdrop:
+`setAmbient(theme)` sets `body[data-ambient]` (each daily entry function
+calls it after `hideAllModes()`, which clears it), and `#ambient`, a fixed
+full-page layer at `z-index: -1` (above the body's backdrop, below the
+page), shows that world's version. Volcanic Depths: a forge-glow from
+below and rising embers. Frozen Caverns: a cold floor mist and falling
+snow. Overgrown Ruins: a green haze, wandering fireflies and the odd
+falling leaf. Abandoned Castle: banks of lilac fog rolling past and
+drifting dust. The particles are square, like pixels: 36 plain `<i>`s
+scattered once at bootstrap by `scatterParticles(container, count,
+seed)`, which gives each its place, size, speed, start offset and drift as
+custom properties (`--x --y --s --t --d --o`) from a fixed seed; each
+world's CSS decides what they look like and how they move. The title
+screen's embers and fireflies use the same helper. Under
+`prefers-reduced-motion` the particles are hidden and the light stays
+still.
 
 - **Solver challenge**: `startDailySolverChallenge(difficulty)` calls the
   same `startSolverMode` normal shared-link solving uses, just with a
@@ -1558,6 +1592,21 @@ wrapping), and a Levels button (disabled while locked). Locked worlds
 show the preview greyscale and dimmed under a lock. The page backdrop
 switches with the world shown. A "Reset progress" link sits underneath
 (two-step confirm).
+
+Switching worlds slides the screen over (`showTheme(idx, dir)`, `dir` +1
+for the next world, −1 for the previous; a dot picks the direction toward
+it): the world's card (`#theme-card`, in `#theme-card-slot`) and its
+name/status/progress (`#theme-info`, in `#theme-info-slot`) slide in from
+one side while a copy of the old ones (`.world-slide-ghost`, which keeps
+its ids so the id-based styling still applies — it sits after the real
+element, so lookups find the real one) slides out the other, clipped by
+the panel (`overflow: hidden`). The page backdrop slides across with them
+on two temporary full-screen layers (`.world-slide-backdrop`, laid out
+like body's own background, behind the content). All of it is the Web
+Animations API, `WORLD_SLIDE_MS` (420ms). A new switch mid-slide, leaving
+the screen (`hideAllModes`), or a backstop timer (for a page that isn't
+drawing frames) ends it via `finishWorldSlide`, so nothing is left
+behind. Instant under `prefers-reduced-motion: reduce`.
 
 `#level-select` shows the world's 12 levels as `.level-plate` buttons
 (6 × 2; 3 columns on phones): number (or 🔒), name, best stars, and tags — ⏱ for a
@@ -1721,9 +1770,19 @@ screen's layout was inspired by) — progress is picked up automatically
 browser tab, so those two
 didn't get a reskinned equivalent; the five buttons instead map directly to
 the app's five real entry points (the campaign, Daily Puzzle, Creative
-Mode, instructions, credits). How To Play opens with the basics, stars,
-the story and badges, then is split into Everywhere / Volcanic Depths /
-Frozen Caverns / Overgrown Ruins / Abandoned Castle sections.
+Mode, instructions, credits). Each carries a pixel icon at its left
+(`.title-btn-icon`, `TITLE_MENU_ICONS` in sprites.js): the goal gem for
+Play, a calendar page for the Daily Puzzle, the master's tools for
+Creative Mode, the master's journal page for How To Play, a rating star
+for Credits. The tagline under the logo is "Find the master." — the
+prologue's closing title card, word for word. How To Play is kept short: four numbered
+steps (reach the gem, avoid traps, traps have a rhythm, start/gem are safe),
+a "Good to know" list (stars, unlocking, levers, timed rooms, Creative
+Mode), then a "Trap guide" of collapsed `<details>` sections (All worlds /
+Volcanic Depths / Frozen Caverns / Overgrown Ruins / Abandoned Castle) so a
+new player isn't handed a wall of text — the "New trap!" card teaches each
+trap on first sight. Credits: title, one-line description, maker, what it's
+built with, thanks, privacy link.
 
 ### Live streak sign
 
@@ -1738,19 +1797,46 @@ signpost.
 
 ### Pixel art
 
-All of the title screen's art — the riveted-steel button plates (visually
-the same "trap mechanism" material as the spike tiles, via the same
-bevel+rivet technique as `drawSpikePlateBase`), the flanking wall torches,
-the jagged spike-silhouette "treeline" along the floor, and the signpost —
-is generated by [sprites.js](sprites.js)'s existing bitmap-grid ->
-inline-SVG pipeline (see Pixel-art rendering above), not a new one. See the
-"Title-screen decorative sprites" section of [sprites.js](sprites.js) for
-the frame generators and `TITLE_SCREEN_TEXTURES` for the resulting data
-URLs. The torches/spikes/signpost are still applied as plain inline
-`background-image`s in script.js's bootstrap (the same pattern Creative Mode
-uses for its palette icons); the button plate texture specifically goes
-through a CSS custom property instead — see Matching the title screen's
-look on the rest of the page below for why.
+The title screen's art is generated by [sprites.js](sprites.js)'s
+existing bitmap-grid -> inline-SVG pipeline (see Pixel-art rendering
+above), not a new one — the "Title-screen decorative sprites" and "Home
+menu icons" sections of [sprites.js](sprites.js) have the frame
+generators, `TITLE_SCREEN_TEXTURES` and `TITLE_MENU_ICONS` the data URLs.
+
+- **Backdrop** (`makeHomeBackdropFrame`, 128x96, `background-size:
+  cover` on `#title-screen`): the view out of the Trapwright's workshop
+  door at the foot of the mountain, where the prologue starts, with
+  every world of the story in one night scene. The Volcanic Depths' cone
+  glows on the left, the Frozen Caverns' snow-capped peaks stand behind,
+  the Abandoned Castle sits on its crag under the moon on the right, and
+  the Overgrown Ruins' forest runs along the bottom with a path cut into
+  it. Stone pillars and an arch (the doorway, laid in courses and
+  torch-lit along its inner edge) frame it. The menu covers the middle,
+  so the worlds sit to the sides and along the bottom; a phone sees only
+  the middle (sky, peaks, forest). `fillPeaks()` draws straight-sided
+  peaks (`{ x, h, slope }`, optionally capped flat for a crater) and
+  returns each column's top, for snow caps and shading.
+- **Decorations** (`#title-decor`): three of the master's journal pages
+  drifting (the page that glows on the floor in the cutscenes), the
+  apprentice (the lava player's idle frame) standing at the head of the
+  path, embers rising off the volcano and fireflies over the forest
+  (`scatterParticles` in script.js — see Daily Puzzle → world layer), plus
+  the two wall torches, now on the doorway's pillars. They replace the
+  old spike-silhouette "treeline". On phones the torches (whose pillars
+  are cropped off) and one page go; on short windows the apprentice does.
+  `prefers-reduced-motion` stills all of it.
+- **Buttons**: see Shared "chrome button" styling below. The home menu's
+  own buttons are a heavier version — a fourth, gold ring and brighter
+  gilt (`makeMenuFrame`, `--menu-frame`, 12px in) around a two-tone face,
+  labels in the logo's outlined monospace, and Play's face in the forge's
+  ember red with a slow glow.
+- **Signpost**: as before (the live streak sign).
+
+The torches/pages/icons/apprentice/signpost/backdrop are plain inline
+`background-image`s set in script.js's bootstrap (the same pattern
+Creative Mode uses for its palette icons); the button frames go through
+CSS custom properties instead — see Matching the title screen's look on
+the rest of the page below for why.
 
 ### Shared-link bypass
 
@@ -1789,13 +1875,24 @@ needs, which is what keeps any screen from leaking into another.
 
 ### Shared "chrome button" styling (`.pixel-btn`)
 
-`.pixel-btn` is the riveted-plate look (see Pixel art above) applied to
+`.pixel-btn` is the framed-plate look (see Pixel art above) applied to
 every "chrome" button outside the grid — `#home-btn`, `#builder-toggle`,
 `#validate-btn`, the six `.daily-mode-btn`s, the win modal's buttons, and
 so on (see the `class="pixel-btn"` attributes in [index.html](index.html))
 — sharing one CSS rule with `.title-btn` (`.title-btn, .pixel-btn { … }`)
-rather than duplicating it. Two things about this rule are load-bearing,
-not stylistic:
+rather than duplicating it. The look is two layers: a bronze trim (dark
+outline, a trim lit top/left and shadowed bottom/right, a dark inner
+line, a bright stud at each inner corner — the chapter badges' rims and
+the cutscene captions' dark boxes, in button form) drawn as a 9-slice
+`border-image` (`makeButtonFrame` in sprites.js, 3px slices drawn 9px in
+over the padding, with no real border — so the frame never changes a
+button's size and stays the same crisp thickness on a button of any
+size), around a face that's a plain background (a dark plum with a lit
+top band). `.level-plate`s use the same frame and face. (This replaced a
+riveted-steel plate image stretched over the whole button with
+`background-size: 100% 100%`, whose trim grew chunky on wide buttons and
+crowded long labels.) Two things about this rule are load-bearing, not
+stylistic:
 
 - **It's a plain class selector, not `button:not(.tile)`.** An earlier
   version of the shared button styling *was* written as
@@ -1817,8 +1914,9 @@ not stylistic:
   (a destructive action staying visually distinct) works by simply setting
   `background` (the shorthand, which resets `background-image` to `none`
   along with `background-color`) in a rule with higher specificity than
-  `.pixel-btn`'s — an id outranks one class. This is also why `.pixel-btn`'s
-  own `background-image` reads a CSS custom property (`--plate-texture`,
+  `.pixel-btn`'s — an id outranks one class; the red fills the face inside
+  the same frame. This is also why `.pixel-btn`'s
+  frame reads a CSS custom property (`--plate-frame`,
   set once via `document.documentElement.style.setProperty(...)` in
   script.js's bootstrap) instead of a per-element inline style the way
   every other texture in this app is applied: an inline style always wins
@@ -1837,9 +1935,9 @@ the plate art with a flat color rectangle instead of tinting it — exactly
 the "different button model" this was rewritten to avoid. The fix is an
 inset box-shadow with a huge spread (`inset 0 0 0 999px rgba(46, 139, 87,
 0.55)`) instead: it paints as a translucent wash *above* `.pixel-btn`'s
-background but *below* the button's own text (box-shadow always paints
-between backgrounds and content in a box's local stacking order), so the
-plate's bevel/rivets and the label both stay legible, just green-tinted.
+background but *below* its border-image frame and its text (box-shadow
+paints between a box's backgrounds and its border), so the frame and the
+label both stay crisp, on a green-tinted face.
 
 `min-width: 130px` and the extra horizontal padding (`14px 22px`, up from
 the title screen's own `14px 18px`) on `.title-btn, .pixel-btn` are both
@@ -1858,9 +1956,12 @@ the same reason, scoped to its one particularly tight case: a completed
 and "Medium ✓"/"Builder ✓"-length labels needed the extra margin most.
 
 `button:not(.tile)` itself still exists, but reduced to a bare reset
-(`font: inherit; border: none; cursor: pointer;`) that deliberately
+(`font: inherit; border-style: none; cursor: pointer;`) that deliberately
 declares none of the properties `.pixel-btn`/`.title-btn` control, so the
-two rules can never re-collide the way the original version did. The one
+two rules can never re-collide the way the original version did. It's
+`border-style`, not the `border` shorthand, because that shorthand also
+resets `border-image` — and, out-ranking `.pixel-btn` the way it does,
+wiped every button's frame when the frame first moved to `border-image`. The one
 button that isn't `.pixel-btn` (`#trash-can`, a `.palette-item`) still
 picks up this bare reset underneath its own full look, unaffected.
 

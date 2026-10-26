@@ -67,47 +67,155 @@ h1 {
   gap: 22px;
   padding: 32px 16px;
   overflow: hidden;
-  background: linear-gradient(180deg, #14141a 0%, #1e1e26 55%, #0b0b0e 100%);
+  /* The view out of the workshop door (TITLE_SCREEN_TEXTURES.backdrop in
+     sprites.js, set by script.js), over its own top sky color. Anchored a
+     little below center so a wide window crops sky, not the forest. */
+  background-color: #07050e;
+  background-size: cover;
+  background-position: center 70%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
 }
 
 #title-screen[hidden] {
   display: none;
 }
 
+/* A soft shadow behind the logo and menu, so they read over the scene. */
 #title-screen::before {
   content: '';
   position: absolute;
   inset: 0;
-  background-image:
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.35) 0 2px, transparent 2px 40px),
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.25) 0 2px, transparent 2px 64px);
-  opacity: 0.5;
+  background: radial-gradient(ellipse 46% 52% at 50% 46%, rgba(6, 4, 12, 0.62), rgba(6, 4, 12, 0.18) 70%, transparent 100%);
   pointer-events: none;
 }
 
-.title-spikes {
+/* --- Title-screen decorations: the story's props, scattered over the scene */
+
+#title-decor {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: space-evenly;
-  align-items: flex-end;
-  padding: 0 4%;
+  inset: 0;
   pointer-events: none;
 }
 
-.title-spike {
-  width: 34px;
-  height: 54px;
-  background-repeat: no-repeat;
+/* Pages of the master's journal, drifting on the wind — the same page that
+   glows on the floor in the cutscenes. */
+.title-page {
+  position: absolute;
+  width: 48px;
+  height: 48px;
   background-size: 100% 100%;
   image-rendering: pixelated;
   opacity: 0.85;
+  filter: drop-shadow(0 0 6px rgba(255, 240, 200, 0.45));
+  animation: title-page-drift 9s ease-in-out infinite;
 }
 
-.title-spike-tall {
-  height: 76px;
+#title-page-1 { left: 13%; top: 24%; }
+#title-page-2 { right: 11%; top: 66%; animation-duration: 11s; animation-delay: -4s; }
+#title-page-3 { right: 24%; top: 13%; width: 36px; height: 36px; animation-duration: 13s; animation-delay: -7s; opacity: 0.6; }
+
+@keyframes title-page-drift {
+  0%, 100% { transform: translate(0, 0) rotate(-8deg); }
+  35% { transform: translate(10px, -14px) rotate(5deg); }
+  70% { transform: translate(-6px, -4px) rotate(-2deg); }
+}
+
+/* You, the apprentice, at the head of the path. */
+#title-hero {
+  position: absolute;
+  left: 50%;
+  bottom: 3%;
+  width: 36px;
+  height: 42px;
+  margin-left: -18px;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 6px rgba(255, 160, 80, 0.35));
+  animation: title-hero-bob 1.4s ease-in-out infinite;
+}
+
+@keyframes title-hero-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* Embers rising off the volcano (left), fireflies over the forest (bottom).
+   Filled by scatterParticles in script.js. */
+#title-embers,
+#title-fireflies {
+  position: absolute;
+}
+
+#title-embers {
+  left: 2%;
+  width: 36%;
+  top: 20%;
+  bottom: 28%;
+}
+
+#title-fireflies {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22%;
+}
+
+#title-embers i,
+#title-fireflies i {
+  position: absolute;
+  left: var(--x);
+  width: var(--s);
+  height: var(--s);
+}
+
+#title-embers i {
+  bottom: 0;
+  background: #ffb347;
+  box-shadow: 0 0 6px #ff7a1f;
+  animation: title-ember-rise var(--t) linear var(--d) infinite;
+}
+
+#title-embers i:nth-child(3n) {
+  background: #ffe066;
+}
+
+@keyframes title-ember-rise {
+  0% { transform: translate(0, 0); opacity: 0; }
+  12% { opacity: 0.9; }
+  100% { transform: translate(var(--o), -48vh); opacity: 0; }
+}
+
+#title-fireflies i {
+  top: var(--y);
+  background: #fff27a;
+  box-shadow: 0 0 8px 2px rgba(216, 240, 128, 0.6);
+  animation:
+    title-firefly-wander var(--t) ease-in-out var(--d) infinite alternate,
+    title-firefly-blink 2.6s ease-in-out var(--d) infinite;
+}
+
+@keyframes title-firefly-wander {
+  from { transform: translate(0, 0); }
+  to { transform: translate(var(--o), -18px); }
+}
+
+@keyframes title-firefly-blink {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-page,
+  #title-hero,
+  #title-embers i,
+  #title-fireflies i {
+    animation: none;
+  }
+
+  #title-embers {
+    display: none;
+  }
 }
 
 .title-torch {
@@ -123,11 +231,11 @@ h1 {
 }
 
 #title-torch-left {
-  left: 6%;
+  left: 5%;
 }
 
 #title-torch-right {
-  right: 6%;
+  right: 5%;
 }
 
 @keyframes title-torch-flicker {
@@ -165,21 +273,92 @@ h1 {
   display: block;
 }
 
+/* The prologue's closing title card, word for word (see STORY_SCENES'
+   opening in story.js), in the cutscenes' chapter-card style. */
 #title-tagline {
   margin: 0;
-  color: #b7b7c2;
-  font-size: 0.95rem;
+  color: #cfc8e0;
+  font-style: italic;
+  font-size: 1rem;
   letter-spacing: 1px;
+  text-shadow: 0 2px 0 #000, 0 0 8px #000;
 }
 
 #title-menu {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: min(86vw, 320px);
 }
 
-/* .pixel-btn is the same riveted-plate look applied to every "chrome"
+/* The home menu: .title-btn's gilt big brother — a heavier frame
+   (--menu-frame, see makeMenuFrame in sprites.js; 4px slices drawn at 3x,
+   12px in over the padding) around a two-tone face, the label in the
+   logo's and cutscenes' outlined monospace, and the button's icon at its
+   left. */
+#title-menu .title-btn {
+  position: relative;
+  border-image: var(--menu-frame) 4 / 12px;
+  background: linear-gradient(#3a2e42 0 45%, #2a2131 45% 100%);
+  padding: 16px 64px;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  font-size: 1.05rem;
+  letter-spacing: 2px;
+  color: #f4e6b8;
+  text-shadow:
+    -1px 0 0 #000, 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000,
+    0 2px 0 #000;
+}
+
+#title-menu .title-btn:hover,
+#title-menu .title-btn:focus-visible {
+  background: linear-gradient(#4a3b54 0 45%, #362a3f 45% 100%);
+  filter: none;
+}
+
+/* Play: the forge's own color, glowing. */
+#title-menu .title-btn-primary {
+  background: linear-gradient(#6a2c1a 0 45%, #4e1e12 45% 100%);
+  color: #fff3c4;
+  box-shadow: 0 0 18px rgba(255, 122, 31, 0.4);
+  animation: title-play-glow 2.4s ease-in-out infinite;
+}
+
+#title-menu .title-btn-primary:hover,
+#title-menu .title-btn-primary:focus-visible {
+  background: linear-gradient(#7e3620 0 45%, #5e2616 45% 100%);
+}
+
+@keyframes title-play-glow {
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 122, 31, 0.3); }
+  50% { box-shadow: 0 0 24px rgba(255, 140, 50, 0.55); }
+}
+
+.title-btn-icon {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  margin-top: -16px;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  transition: transform 0.15s ease;
+}
+
+#title-menu .title-btn:hover .title-btn-icon,
+#title-menu .title-btn:focus-visible .title-btn-icon {
+  transform: translateY(-3px) scale(1.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #title-menu .title-btn-primary {
+    animation: none;
+  }
+}
+
+/* .pixel-btn is the same framed-plate look applied to every "chrome"
    button on the game page (Enter Builder Mode, Validate, Reset, the daily
    mode buttons, etc.) — see index.html — so leaving the title screen for
    Play/Daily/Builder doesn't hand the player a visually unrelated set of
@@ -192,11 +371,14 @@ h1 {
    `button:not(.tile)` is *more* specific than a plain one-class selector
    like .title-btn ever was, and had been quietly winning the cascade for
    every property the two rules both set).
-   background-image reads a CSS custom property (--plate-texture, set once
-   in script.js) rather than a per-element inline style, so a later,
-   more-specific override can still reset it back to `none` through the
-   normal cascade — an inline style, once set, can never be un-overridden
-   that way. */
+   The look is two layers. The bronze trim is a 9-slice border-image
+   (--plate-frame — makeButtonFrame in sprites.js — set once in script.js
+   rather than as a per-element inline style, so the normal cascade can
+   still override it; an inline style, once set, never can be), drawn 9px
+   in over the padding with no real border, so the frame never changes a
+   button's size. The face under it is a plain background, so an override
+   that sets `background` (a destructive button's red) recolors the face
+   inside the same frame. */
 .title-btn,
 .pixel-btn {
   -webkit-appearance: none;
@@ -215,19 +397,18 @@ h1 {
   min-width: 130px;
   /* Extra horizontal breathing room vs. the title screen's own 18px —
      the longest label in the app ("Back to Daily Puzzle") was reading as
-     nearly edge-to-edge against the plate art's own drawn bevel/rivets,
-     which sit inset from the button's true CSS box edge, not flush with
-     it — so text that merely clears the box edge can still visually
-     crowd the plate's face at that length. */
+     nearly edge-to-edge against the frame, which is drawn 9px in from
+     the button's true CSS box edge, not flush with it — so text that
+     merely clears the box edge can still visually crowd the frame at that
+     length. */
   padding: 14px 22px;
-  border: none;
+  border-image: var(--plate-frame) 3 / 9px;
+  /* Hides the face behind the frame's cut-off corner pixels. */
   border-radius: 3px;
-  background-color: transparent;
+  background-color: #2a2131;
+  background-image: linear-gradient(#3a2e42 0 30%, transparent 30%);
   color: #f4e6b8;
   text-shadow: 1px 1px 0 #000;
-  background-image: var(--plate-texture);
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
   image-rendering: pixelated;
   cursor: pointer;
   transition: transform 0.08s ease, filter 0.15s ease;
@@ -252,7 +433,7 @@ h1 {
 
 .title-btn-primary {
   color: #fff3c4;
-  box-shadow: 0 0 0 2px #c23b3b inset;
+  box-shadow: 0 0 14px rgba(255, 122, 31, 0.35);
 }
 
 #title-sign {
@@ -300,8 +481,9 @@ h1 {
   display: none;
 }
 
+/* The cutscenes' caption box: a dark plum card with a faint gilt edge. */
 .title-modal-card {
-  background: #26262e;
+  background: #1c1722;
   border: 2px solid #000;
   border-radius: 10px;
   padding: 24px 28px;
@@ -311,12 +493,18 @@ h1 {
      rather than overflowing short viewports. */
   max-height: calc(100vh - 32px);
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(216, 168, 80, 0.3), 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
+/* The logo's outlined wordmark, smaller. */
 .title-modal-card h2 {
   margin: 0 0 14px;
-  color: #d4af37;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #e8c04a;
+  text-shadow: -1px 0 0 #000, 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000, 0 3px 0 #000;
 }
 
 .title-modal-card p,
@@ -328,6 +516,56 @@ h1 {
 .title-modal-card ul {
   margin: 0 0 18px;
   padding-left: 20px;
+}
+
+.title-modal-card h3 {
+  margin: 16px 0 6px;
+  color: #d4af37;
+  font-size: 1rem;
+}
+
+.howto-steps {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+
+.howto-steps li {
+  margin-bottom: 8px;
+}
+
+.howto-tip {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: #bbb;
+}
+
+.title-modal-card details {
+  border: 1px solid #444;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  padding: 0 12px;
+}
+
+.title-modal-card summary {
+  cursor: pointer;
+  padding: 8px 0;
+  color: #f4e6b8;
+  font-weight: bold;
+}
+
+.title-modal-card details[open] summary {
+  border-bottom: 1px solid #444;
+  margin-bottom: 8px;
+}
+
+.title-modal-card details ul {
+  margin-bottom: 10px;
+}
+
+.credits-title {
+  font-size: 1.2rem;
+  color: #f4e6b8;
+  margin: 0 0 6px;
 }
 
 .title-modal-card .title-btn {
@@ -358,10 +596,12 @@ h1 {
    both declare the same property, or the specificity trap is back. The
    one non-.pixel-btn button left (#trash-can, a .palette-item) supplies
    its own full look, so it only needs this bare reset underneath it.
-   #home-btn's own rule (below) covers its fixed positioning. */
+   #home-btn's own rule (below) covers its fixed positioning.
+   border-style, not the `border` shorthand: the shorthand also resets
+   border-image, which would wipe .pixel-btn's frame. */
 button:not(.tile) {
   font: inherit;
-  border: none;
+  border-style: none;
   cursor: pointer;
 }
 
@@ -416,30 +656,123 @@ button:not(.tile) {
 
 /* --- Daily Puzzle hub -------------------------------------------------- */
 
+/* A dark glass card in the day's world's colors (--theme-accent/glow),
+   so that world's backdrop and #ambient show around and through it, with
+   a banner of the world itself on top (renderDailyHubBanner). */
 #daily-hub {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  background: #26262e;
+  background: rgba(12, 9, 18, 0.86);
   border: 2px solid #000;
   border-radius: 10px;
-  padding: 20px 24px;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--theme-accent) 35%, transparent),
+    0 0 32px 4px var(--theme-glow);
+  padding: 0 24px 20px;
   width: min(90vw, 560px);
   text-align: center;
+  overflow: hidden;
 }
 
 #daily-hub[hidden] {
   display: none;
 }
 
-#daily-hub h2 {
+/* The world's backdrop, cropped to its mountains, over a row of its tiles. */
+#daily-hub-banner {
+  position: relative;
+  align-self: stretch;
+  margin: 0 -24px 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background-size: cover;
+  /* High enough to catch each scene's sky and peaks: the volcano's crater,
+     the aurora, the moon over the castle, the temple's top. */
+  background-position: center 22%;
+  image-rendering: pixelated;
+  border-bottom: 2px solid #000;
+}
+
+/* Lit from below in the world's own color. */
+#daily-hub-title {
+  padding: 44px 12px 14px;
+  background:
+    radial-gradient(ellipse 60% 90% at 50% 100%, color-mix(in srgb, var(--theme-accent) 24%, transparent), transparent 70%),
+    linear-gradient(transparent, rgba(6, 4, 10, 0.45));
+}
+
+#daily-hub-banner h2 {
   margin: 0;
-  font-size: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+#daily-hub-kicker {
+  font-size: 0.75rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #f4e6b8;
+  text-shadow: 0 1px 0 #000, 0 0 6px #000;
+}
+
+/* The world's name in the cutscenes' chapter-card wordmark. */
+#daily-hub-world {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-size: clamp(1.15rem, 4.6vw, 1.7rem);
+  color: var(--theme-accent);
+  text-shadow:
+    -2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000,
+    0 4px 0 #000, 0 0 14px color-mix(in srgb, var(--theme-accent) 40%, transparent);
 }
 
 #daily-hub-date {
-  color: #b7b7c2;
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #cfc8e0;
+  text-shadow: 0 1px 0 #000;
+  font-variant-numeric: tabular-nums;
+}
+
+#daily-hub-strip {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  border-top: 2px solid #000;
+}
+
+#daily-hub-strip span {
+  aspect-ratio: 1 / 1;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+
+/* Standing on the first tile. */
+#daily-hub-strip .daily-hub-hero {
+  position: absolute;
+  left: calc(100% / 120);
+  bottom: 4%;
+  width: calc(100% / 15);
+  aspect-ratio: 12 / 14;
+  background-size: 100% 100%;
+  animation: title-hero-bob 1.4s ease-in-out infinite;
+}
+
+#daily-hub-theme {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--theme-accent);
+}
+
+#daily-hub-theme[hidden] {
+  display: none;
 }
 
 #daily-hub-streak {
@@ -467,8 +800,13 @@ button:not(.tile) {
 
 .daily-hub-column h3 {
   margin: 0;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
   font-size: 1rem;
-  color: #b7b7c2;
+  color: var(--theme-accent);
+  text-shadow: 0 2px 0 #000;
 }
 
 .daily-hub-hint {
@@ -477,13 +815,11 @@ button:not(.tile) {
   color: #b7b7c2;
 }
 
-/* A translucent green wash layered over the *same* riveted plate texture
-   (not `background: <green>`, which would win over .pixel-btn's
-   background-image via the shorthand and replace the plate art with a
-   flat color rectangle — visibly "a different button model" for a
-   completed challenge, which is exactly the look this replaced). An inset
-   box-shadow paints above the background but below the button's own text,
-   so the plate's bevel/rivets and the label stay legible, just tinted. */
+/* A translucent green wash over the *same* face (not `background:
+   <green>`, which would also drop the face's lit top band — a completed
+   challenge is still the same button, just done). An inset box-shadow
+   paints above the background but below the frame and the label, so both
+   stay crisp, just on a green-tinted face. */
 .daily-mode-btn.completed {
   box-shadow: inset 0 0 0 999px rgba(46, 139, 87, 0.55);
 }
@@ -1140,21 +1476,48 @@ button.tile {
     letter-spacing: 2px;
   }
 
+  /* A phone sees only the middle of the scene — the doorway they'd hang
+     on is cropped off — so the torches go. */
   .title-torch {
-    width: 30px;
-    height: 54px;
+    display: none;
   }
 
-  .title-spike {
-    width: 20px;
-    height: 34px;
+  .title-page {
+    width: 36px;
+    height: 36px;
   }
 
-  .title-spike-tall {
-    height: 46px;
-  }
+  #title-page-1 { left: 6%; top: 12%; }
+  #title-page-2 { right: 5%; top: 78%; }
+  #title-page-3 { display: none; }
 
   #title-sign {
+    display: none;
+  }
+}
+
+/* Short windows: a smaller logo and slimmer menu buttons, so the whole
+   menu still fits (the title screen doesn't scroll). */
+@media (max-height: 640px) {
+  #title-screen {
+    gap: 14px;
+    padding: 16px;
+  }
+
+  #title-content {
+    gap: 12px;
+  }
+
+  #title-logo {
+    font-size: clamp(2rem, 7vh, 3rem);
+  }
+
+  #title-menu .title-btn {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  #title-hero {
     display: none;
   }
 }
@@ -1195,6 +1558,179 @@ body[data-theme="castle"] {
   --theme-glow: rgba(201, 184, 255, 0.2);
 }
 
+/* --- The Daily Puzzle's world layer (#ambient) ------------------------------
+
+   On the Daily Puzzle's screens (body[data-ambient], see setAmbient in
+   script.js) the day's world moves all around the page, between its
+   backdrop and everything else: embers rise in the Volcanic Depths, snow
+   falls in the Frozen Caverns, fireflies drift and leaves fall in the
+   Overgrown Ruins, and fog and dust roll through the Abandoned Castle,
+   each over a wash of that world's light. The particles are square, like
+   pixels, and scattered by scatterParticles. z-index -1 puts the layer
+   above the body's backdrop (the page background) but under the page. */
+#ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  display: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+body[data-ambient] #ambient {
+  display: block;
+}
+
+#ambient::before,
+#ambient::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+#ambient i {
+  position: absolute;
+  left: var(--x);
+  width: var(--s);
+  height: var(--s);
+}
+
+/* Volcanic Depths: the forge-glow from below, and embers. */
+body[data-ambient="lava"] #ambient::before {
+  background: radial-gradient(ellipse 80% 45% at 50% 105%, rgba(255, 110, 30, 0.3), transparent 70%);
+  animation: ambient-pulse 4s ease-in-out infinite;
+}
+
+body[data-ambient="lava"] #ambient i {
+  bottom: -8px;
+  background: #ffb347;
+  box-shadow: 0 0 6px #ff7a1f;
+  animation: ambient-rise var(--t) linear var(--d) infinite;
+}
+
+body[data-ambient="lava"] #ambient i:nth-child(3n) {
+  background: #ffe066;
+}
+
+/* Frozen Caverns: a cold mist at the floor, and falling snow. */
+body[data-ambient="ice"] #ambient::before {
+  background:
+    linear-gradient(to top, rgba(150, 215, 255, 0.18), transparent 40%),
+    linear-gradient(to bottom, rgba(200, 235, 255, 0.08), transparent 25%);
+}
+
+body[data-ambient="ice"] #ambient i {
+  top: -8px;
+  background: #e6f6ff;
+  opacity: 0.85;
+  animation: ambient-fall calc(var(--t) * 1.3) linear var(--d) infinite;
+}
+
+body[data-ambient="ice"] #ambient i:nth-child(4n) {
+  background: #a8dcff;
+}
+
+/* Overgrown Ruins: a green haze, fireflies, and the odd falling leaf. */
+body[data-ambient="grass"] #ambient::before {
+  background: radial-gradient(ellipse 90% 50% at 50% 100%, rgba(120, 200, 80, 0.2), transparent 70%);
+}
+
+body[data-ambient="grass"] #ambient i {
+  top: var(--y);
+  background: #fff27a;
+  box-shadow: 0 0 8px 2px rgba(216, 240, 128, 0.55);
+  animation:
+    ambient-wander var(--t) ease-in-out var(--d) infinite alternate,
+    ambient-blink 2.6s ease-in-out var(--d) infinite;
+}
+
+body[data-ambient="grass"] #ambient i:nth-child(4n) {
+  top: -8px;
+  background: #5fa83a;
+  box-shadow: none;
+  animation: ambient-leaf calc(var(--t) * 1.4) linear var(--d) infinite;
+}
+
+/* Abandoned Castle: banks of fog rolling past, and drifting dust. */
+body[data-ambient="castle"] #ambient::before,
+body[data-ambient="castle"] #ambient::after {
+  inset: auto -50% 0 -50%;
+  height: 45%;
+  background:
+    radial-gradient(ellipse 22% 40% at 20% 70%, rgba(201, 184, 255, 0.14), transparent 70%),
+    radial-gradient(ellipse 26% 45% at 55% 80%, rgba(180, 170, 230, 0.12), transparent 70%),
+    radial-gradient(ellipse 20% 35% at 85% 65%, rgba(201, 184, 255, 0.12), transparent 70%);
+  animation: ambient-fog 40s ease-in-out infinite alternate;
+}
+
+body[data-ambient="castle"] #ambient::after {
+  bottom: 18%;
+  opacity: 0.7;
+  animation-duration: 64s;
+  animation-direction: alternate-reverse;
+}
+
+body[data-ambient="castle"] #ambient i {
+  top: var(--y);
+  background: #c9b8ff;
+  opacity: 0;
+  animation: ambient-mote calc(var(--t) * 1.5) ease-in-out var(--d) infinite;
+}
+
+@keyframes ambient-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+@keyframes ambient-rise {
+  0% { transform: translate(0, 0); opacity: 0; }
+  10% { opacity: 0.9; }
+  100% { transform: translate(var(--o), -105vh); opacity: 0; }
+}
+
+@keyframes ambient-fall {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(var(--o), 105vh); }
+}
+
+@keyframes ambient-leaf {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(var(--o), 52vh) rotate(180deg); }
+  100% { transform: translate(0, 105vh) rotate(360deg); }
+}
+
+@keyframes ambient-wander {
+  from { transform: translate(0, 0); }
+  to { transform: translate(var(--o), -40px); }
+}
+
+@keyframes ambient-blink {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 1; }
+}
+
+@keyframes ambient-fog {
+  from { transform: translateX(-16%); }
+  to { transform: translateX(16%); }
+}
+
+@keyframes ambient-mote {
+  0%, 100% { transform: translate(0, 0); opacity: 0; }
+  50% { transform: translate(var(--o), -60px); opacity: 0.6; }
+}
+
+/* Still light, no movement. */
+@media (prefers-reduced-motion: reduce) {
+  #ambient i {
+    display: none;
+  }
+
+  #ambient::before,
+  #ambient::after {
+    animation: none;
+  }
+}
+
 .text-btn {
   background: none;
   color: #b7b7c2;
@@ -1231,6 +1767,54 @@ body[data-theme="castle"] {
 
 #theme-select {
   width: min(94vw, 560px);
+  /* Switching worlds slides the old one out and the new one in (see
+     showTheme in script.js); the panel clips them so they slide out of
+     view at its edges rather than across the rest of the page. */
+  overflow: hidden;
+}
+
+/* The two parts of a world that slide: its card, and its name, status and
+   progress bar. Each slot is where a departing copy (.world-slide-ghost)
+   sits while it slides away. */
+#theme-card-slot,
+#theme-info-slot {
+  position: relative;
+}
+
+#theme-info-slot {
+  width: 100%;
+}
+
+#theme-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Scoped under the slots so it outranks the copied element's own id
+   rules (#theme-card sets position: relative) — the copy keeps its ids. */
+#theme-card-slot > .world-slide-ghost,
+#theme-info-slot > .world-slide-ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+/* The page backdrop sliding with the world: the departing and arriving
+   backdrops, laid out exactly like body's own (cover, anchored bottom,
+   fixed to the viewport) and behind all of the page's content. */
+.world-slide-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-size: cover;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
 }
 
 #theme-select[hidden],
@@ -1426,11 +2010,11 @@ body[data-theme="castle"] {
   gap: 3px;
   min-height: 100px;
   padding: 12px 6px;
+  /* The buttons' frame and face (see .pixel-btn). */
+  border-image: var(--plate-frame) 3 / 9px;
   border-radius: 3px;
-  background-color: transparent;
-  background-image: var(--plate-texture);
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
+  background-color: #2a2131;
+  background-image: linear-gradient(#3a2e42 0 30%, transparent 30%);
   image-rendering: pixelated;
   color: #f4e6b8;
   text-shadow: 1px 1px 0 #000;
@@ -1851,8 +2435,8 @@ body[data-theme="castle"] {
   color: #e8c04a;
 }
 
-/* Destructive, like #clear-all-confirm-btn: a flat red instead of the
-   plate (the shorthand drops .pixel-btn's background-image). */
+/* Destructive, like #clear-all-confirm-btn: a flat red face in the usual
+   frame (the shorthand drops .pixel-btn's face gradient). */
 #account-delete-btn {
   background: #b0262d;
 }
